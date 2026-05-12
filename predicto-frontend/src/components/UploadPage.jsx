@@ -79,37 +79,34 @@ export default function UploadPage({ onUploadComplete }) {
     formData.append('file', file);
 
     try {
-      // Show ingesting stage
+      // 2. Ingest stage
       setStage('ingesting');
-      setProgress(35);
-
-      // Simulate slight delay so user sees stages
-      await new Promise(r => setTimeout(r, 300));
-      setStage('training');
-      setProgress(70);
-
+      setProgress(40);
+      
       const response = await api.post('/ingest', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-        timeout: 120000, // 2 minute timeout for training
+        timeout: 180000, // 3 minute timeout for deep ML training
       });
 
+      // 3. Finalize
       setStage('done');
       setProgress(100);
       setResult(response.data);
 
-      // Redirect to dashboard after brief success animation
+      // Success! Brief pause so user sees the 100% state, then redirect
       setTimeout(() => {
         if (onUploadComplete) {
           onUploadComplete(response.data);
         }
-      }, 2000);
+      }, 1000);
 
     } catch (err) {
+      console.error("Upload failed:", err);
       setStage('error');
+      setProgress(0);
+      
       const detail = err.response?.data?.detail;
       const message = typeof detail === 'object' ? detail.message : detail || err.message;
-      setError(message || 'Upload failed. Please check your CSV format.');
-      setProgress(0);
+      setError(message || 'Upload failed. Please ensure your CSV follows the required format.');
     } finally {
       setUploading(false);
     }
@@ -138,12 +135,12 @@ export default function UploadPage({ onUploadComplete }) {
             onDragOver={handleDrag}
             onDrop={handleDrop}
             className={`
-              relative border-2 border-dashed rounded-2xl p-12 text-center transition-all duration-300 cursor-pointer
+              relative border-2 border-dashed rounded-2xl p-12 text-center transition-all duration-300 cursor-pointer backdrop-blur-2xl
               ${isDragging
                 ? 'border-brand-primary bg-brand-primary/10 shadow-[0_0_40px_rgba(59,130,246,0.15)]'
-                : 'border-gray-700 bg-[#0f172a] hover:border-gray-500 hover:bg-[#0f172a]/80'
+                : 'border-white/5 bg-slate-900/30 hover:border-white/10 hover:bg-slate-900/40 shadow-2xl'
               }
-              ${file ? 'border-emerald-500/50 bg-emerald-500/5' : ''}
+              ${file ? 'border-emerald-500/30 bg-emerald-500/10' : ''}
             `}
             onClick={() => document.getElementById('csv-input').click()}
           >
@@ -233,7 +230,7 @@ export default function UploadPage({ onUploadComplete }) {
 
         {/* Progress / Status Panel */}
         <div className="xl:col-span-2">
-          <div className="bg-[#0f172a] border border-gray-800 rounded-xl p-8 shadow-[0_0_15px_rgba(59,130,246,0.05)] h-full flex flex-col">
+          <div className="bg-slate-950/40 backdrop-blur-2xl border border-white/5 rounded-2xl p-8 shadow-[0_30px_60px_rgba(0,0,0,0.4)] h-full flex flex-col">
             <h3 className="text-lg font-semibold text-white mb-6 flex items-center gap-2">
               <span className="w-1.5 h-5 bg-brand-accent rounded-full inline-block"></span>
               Training Pipeline

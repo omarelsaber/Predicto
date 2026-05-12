@@ -19,7 +19,7 @@ export default function UploadData() {
       <div className="grid grid-cols-2 gap-6">
         {/* Left: Drag/Drop Zone */}
         <div>
-          <div className="bg-slate-900 border-2 border-dashed border-slate-700 rounded-xl p-12 flex flex-col items-center justify-center text-center hover:border-indigo-500 hover:bg-slate-900/50 transition-all cursor-pointer group">
+          <div className="bg-slate-900/40 backdrop-blur-2xl border-2 border-dashed border-slate-700/50 rounded-xl p-12 flex flex-col items-center justify-center text-center hover:border-indigo-500 hover:bg-slate-900/60 transition-all cursor-pointer group shadow-2xl">
             <div className="mb-4 p-4 bg-indigo-500/10 rounded-full group-hover:bg-indigo-500/20 transition-colors">
               <Cloud size={32} className="text-indigo-400" />
             </div>
@@ -32,7 +32,7 @@ export default function UploadData() {
           </div>
 
           {/* Upload Tips */}
-          <div className="mt-6 bg-slate-900 border border-slate-800 rounded-xl p-5">
+          <div className="mt-6 bg-slate-900/40 backdrop-blur-xl border border-slate-800/50 rounded-xl p-5 shadow-xl">
             <h4 className="text-sm font-bold text-white mb-3">Upload Tips</h4>
             <ul className="space-y-2 text-xs text-slate-400">
               <li className="flex gap-2">
@@ -57,7 +57,7 @@ export default function UploadData() {
 
         {/* Right: Recently Uploaded */}
         <div>
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
+          <div className="bg-slate-900/40 backdrop-blur-2xl border border-slate-800/50 rounded-xl p-6 shadow-2xl">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-sm font-bold text-white">Recently Uploaded</h3>
               <button className="text-slate-400 hover:text-slate-300 transition-colors">
@@ -99,7 +99,7 @@ export default function UploadData() {
           </div>
 
           {/* Settings */}
-          <div className="mt-6 bg-slate-900 border border-slate-800 rounded-xl p-6">
+          <div className="mt-6 bg-slate-900/40 backdrop-blur-xl border border-slate-800/50 rounded-xl p-6 shadow-xl">
             <h4 className="text-sm font-bold text-white mb-4">Data Settings</h4>
             <div className="space-y-4">
               <div>

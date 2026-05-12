@@ -1,92 +1,110 @@
-import { Search, Download, Filter } from 'lucide-react';
+import { useState, useMemo, useEffect } from 'react';
+import { Search, Download, Filter, ChevronLeft, ChevronRight } from 'lucide-react';
+
+import api from '../api';
+
+const ITEMS_PER_PAGE = 8;
 
 export default function DataExplorer() {
-  const transactions = [
-    {
-      id: 'ORD-2024-001',
-      date: '2024-01-15',
-      customer: 'Acme Corp',
-      segment: 'Enterprise',
-      region: 'North America',
-      product: 'Platform',
-      sales: 85000,
-      margin: 24.5
-    },
-    {
-      id: 'ORD-2024-002',
-      date: '2024-01-16',
-      customer: 'TechStart Inc',
-      segment: 'SMB',
-      region: 'Europe',
-      product: 'Suite',
-      sales: 32000,
-      margin: 16.2
-    },
-    {
-      id: 'ORD-2024-003',
-      date: '2024-01-17',
-      customer: 'Global Finance Ltd',
-      segment: 'Enterprise',
-      region: 'APAC',
-      product: 'Custom',
-      sales: 156000,
-      margin: 19.8
-    },
-    {
-      id: 'ORD-2024-004',
-      date: '2024-01-18',
-      customer: 'Growth Ventures',
-      segment: 'Mid-Market',
-      region: 'North America',
-      product: 'Platform',
-      sales: 52000,
-      margin: 12.1
-    },
-    {
-      id: 'ORD-2024-005',
-      date: '2024-01-19',
-      customer: 'Innovation Labs',
-      segment: 'SMB',
-      region: 'North America',
-      product: 'Suite',
-      sales: 28000,
-      margin: 8.7
-    },
-    {
-      id: 'ORD-2024-006',
-      date: '2024-01-20',
-      customer: 'Enterprise Solutions',
-      segment: 'Enterprise',
-      region: 'Europe',
-      product: 'Platform',
-      sales: 120000,
-      margin: 22.3
-    },
-    {
-      id: 'ORD-2024-007',
-      date: '2024-01-21',
-      customer: 'Market Leaders Inc',
-      segment: 'Mid-Market',
-      region: 'APAC',
-      product: 'Custom',
-      sales: 75000,
-      margin: 14.6
-    },
-    {
-      id: 'ORD-2024-008',
-      date: '2024-01-22',
-      customer: 'Digital Transformation Co',
-      segment: 'SMB',
-      region: 'Europe',
-      product: 'Suite',
-      sales: 35000,
-      margin: 5.3
-    }
-  ];
+  // 1. State Management
+  const [transactions, setTransactions] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [segmentFilter, setSegmentFilter] = useState('All Segments');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Live backend fetch
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setIsLoading(true);
+        // Call the new /transactions endpoint (which returns all rows)
+        const response = await api.get('/transactions');
+        
+        if (response.data.status === 'success' || response.data.status === 'no_data') {
+          // Map backend aliases ("Order ID") to frontend logic keys ("id")
+          const mappedData = response.data.data.map(item => ({
+            id: item["Order ID"],
+            date: item["Order Date"],
+            customer: item["Customer"],
+            segment: item["Segment"],
+            region: item["Region"],
+            product: item["Product"],
+            sales: item["Sales"],
+            margin: item["Margin"]
+          }));
+          setTransactions(mappedData);
+        } else {
+          setError("The server returned an unexpected response format.");
+        }
+      } catch (err) {
+        console.error("Failed to fetch transactions:", err);
+        setError("Could not connect to the Predicto engine. Please ensure the backend is running.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  // 2. Computed Data Logic (Filtering & Searching)
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter(tx => {
+      const matchesSearch = 
+        tx.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        tx.customer.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      const matchesSegment = 
+        segmentFilter === 'All Segments' || tx.segment === segmentFilter;
+
+      return matchesSearch && matchesSegment;
+    });
+  }, [transactions, searchQuery, segmentFilter]);
+
+  // Reset page on filter change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, segmentFilter]);
+
+  // 3. Pagination Logic
+  const totalPages = Math.ceil(filteredTransactions.length / ITEMS_PER_PAGE);
+  const paginatedTransactions = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredTransactions.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredTransactions, currentPage]);
+
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE + 1;
+  const endIndex = Math.min(currentPage * ITEMS_PER_PAGE, filteredTransactions.length);
+
+  // 6. Export CSV Logic
+  const handleExportCSV = () => {
+    if (filteredTransactions.length === 0) return;
+
+    const headers = ['Order ID', 'Date', 'Customer', 'Segment', 'Region', 'Product', 'Sales', 'Margin'];
+    const rows = filteredTransactions.map(tx => [
+      tx.id, tx.date, tx.customer, tx.segment, tx.region, tx.product, tx.sales, `${tx.margin}%`
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(r => r.join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `predicto_export_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   const getMarginColor = (margin) => {
-    if (margin >= 15) return 'text-emerald-400';
-    if (margin >= 10) return 'text-amber-400';
+    const value = parseFloat(margin);
+    if (value >= 15) return 'text-emerald-400';
+    if (value >= 10) return 'text-amber-400';
     return 'text-rose-400';
   };
 
@@ -99,7 +117,7 @@ export default function DataExplorer() {
       </div>
 
       {/* Filters */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 flex gap-4 items-end">
+      <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-800/50 rounded-xl p-5 flex gap-4 items-end shadow-2xl">
         <div className="flex-1">
           <label className="block text-xs text-slate-400 font-medium mb-2">Search</label>
           <div className="relative">
@@ -107,27 +125,36 @@ export default function DataExplorer() {
             <input
               type="text"
               placeholder="Order ID, customer name..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-10 pr-4 py-2.5 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
             />
           </div>
         </div>
         <div className="flex-shrink-0">
           <label className="block text-xs text-slate-400 font-medium mb-2">Segment</label>
-          <select className="bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+          <select 
+            value={segmentFilter}
+            onChange={(e) => setSegmentFilter(e.target.value)}
+            className="bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          >
             <option>All Segments</option>
             <option>Enterprise</option>
             <option>Mid-Market</option>
             <option>SMB</option>
           </select>
         </div>
-        <button className="flex items-center gap-2 bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-400 font-medium py-2.5 px-4 rounded-lg transition-colors border border-indigo-500/30 text-sm">
+        <button 
+          onClick={handleExportCSV}
+          className="flex items-center gap-2 bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-400 font-medium py-2.5 px-4 rounded-lg transition-colors border border-indigo-500/30 text-sm"
+        >
           <Download size={16} />
           Export CSV
         </button>
       </div>
 
       {/* Table */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+      <div className="bg-slate-900/30 backdrop-blur-xl border border-slate-800/50 rounded-xl overflow-hidden shadow-2xl">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
@@ -143,7 +170,22 @@ export default function DataExplorer() {
               </tr>
             </thead>
             <tbody>
-              {transactions.map((tx, idx) => (
+              {isLoading ? (
+                <tr>
+                  <td colSpan="8" className="px-6 py-20 text-center">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="w-8 h-8 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin"></div>
+                      <p className="text-sm text-slate-400">Loading records from Predicto engine...</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : error ? (
+                <tr>
+                  <td colSpan="8" className="px-6 py-12 text-center text-rose-400 text-sm bg-rose-500/5">
+                    {error}
+                  </td>
+                </tr>
+              ) : paginatedTransactions.map((tx) => (
                 <tr
                   key={tx.id}
                   className="border-b border-slate-800/50 hover:bg-slate-800/30 transition-colors"
@@ -154,10 +196,21 @@ export default function DataExplorer() {
                   <td className="px-6 py-4 text-sm text-slate-300">{tx.segment}</td>
                   <td className="px-6 py-4 text-sm text-slate-300">{tx.region}</td>
                   <td className="px-6 py-4 text-sm text-slate-300">{tx.product}</td>
-                  <td className="px-6 py-4 text-sm text-slate-300 text-right font-mono">${tx.sales.toLocaleString()}</td>
-                  <td className={`px-6 py-4 text-sm text-right font-bold ${getMarginColor(tx.margin)}`}>{tx.margin}%</td>
+                  <td className="px-6 py-4 text-sm text-slate-300 text-right font-mono">
+                    ${typeof tx.sales === 'number' ? tx.sales.toLocaleString() : tx.sales}
+                  </td>
+                  <td className={`px-6 py-4 text-sm text-right font-bold ${getMarginColor(tx.margin)}`}>
+                    {tx.margin}{typeof tx.margin === 'number' ? '%' : ''}
+                  </td>
                 </tr>
               ))}
+              {!isLoading && !error && filteredTransactions.length === 0 && (
+                <tr>
+                  <td colSpan="8" className="px-6 py-12 text-center text-slate-500 text-sm italic">
+                    No transactions found matching your criteria.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -165,13 +218,25 @@ export default function DataExplorer() {
 
       {/* Pagination */}
       <div className="flex items-center justify-between">
-        <p className="text-sm text-slate-400">Showing 1-8 of 342 transactions</p>
+        <p className="text-sm text-slate-400">
+          Showing {filteredTransactions.length > 0 ? `${startIndex}-${endIndex}` : '0'} of {filteredTransactions.length} transactions
+        </p>
         <div className="flex gap-2">
-          <button className="bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 font-medium py-2 px-4 rounded-lg text-sm transition-colors">
+          <button 
+            onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+            disabled={currentPage === 1 || filteredTransactions.length === 0}
+            className="bg-slate-900 hover:bg-slate-800 disabled:opacity-50 disabled:hover:bg-slate-900 border border-slate-800 text-slate-300 font-medium py-2 px-4 rounded-lg text-sm transition-colors flex items-center gap-1"
+          >
+            <ChevronLeft size={16} />
             Previous
           </button>
-          <button className="bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 font-medium py-2 px-4 rounded-lg text-sm transition-colors">
+          <button 
+            onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+            disabled={currentPage === totalPages || filteredTransactions.length === 0}
+            className="bg-slate-900 hover:bg-slate-800 disabled:opacity-50 disabled:hover:bg-slate-900 border border-slate-800 text-slate-300 font-medium py-2 px-4 rounded-lg text-sm transition-colors flex items-center gap-1"
+          >
             Next
+            <ChevronRight size={16} />
           </button>
         </div>
       </div>

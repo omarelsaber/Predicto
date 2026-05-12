@@ -683,6 +683,62 @@ def _build_data_preview_response() -> DataPreviewResponse:
 
 
 @router.get(
+    "/transactions",
+    response_model=DataPreviewResponse,
+    response_model_by_alias=True,
+    summary="Fetch all cleaned transaction records",
+    responses={
+        200: {"description": "Full dataset from cache"},
+        503: {"model": ErrorResponse, "description": "Models not yet ready"},
+    },
+)
+async def get_all_transactions() -> DataPreviewResponse:
+    """Returns all transaction-level data currently held in cache."""
+    df = predicto_cache.get_raw_data()
+    if df is None or df.empty:
+        return DataPreviewResponse(status="no_data", count=0, data=[])
+    
+    # Use the existing build helper but without the .head(100) limit
+    # We'll just build it manually here for full data
+    total_count = len(df)
+    rows_out: list[DataPreviewRecord] = []
+    has_margin_rate = "Margin_Rate" in df.columns
+
+    for r in df.to_dict(orient="records"):
+        sales = float(r.get("Sales") or 0.0)
+        
+        if has_margin_rate and r.get("Margin_Rate") is not None:
+            mr = float(r["Margin_Rate"])
+            margin_str = f"{round(mr * 100, 1)}%"
+        else:
+            profit = float(r.get("Profit") or 0.0)
+            m = (profit / sales) if sales != 0 else 0.0
+            margin_str = f"{m * 100:.1f}%"
+
+        od = r.get("Order Date")
+        order_date_str = od.strftime("%Y-%m-%d") if hasattr(od, "strftime") else str(od or "")
+
+        rows_out.append(
+            DataPreviewRecord(
+                order_id=str(r.get("Order ID", "")),
+                order_date=order_date_str,
+                customer=str(r.get("Customer", "")),
+                segment=str(r.get("Segment", "")),
+                region=str(r.get("Region", "")),
+                product=str(r.get("Product", "")),
+                sales=sales,
+                margin=margin_str,
+            )
+        )
+
+    return DataPreviewResponse(
+        status="success",
+        count=total_count,
+        data=rows_out,
+    )
+
+
+@router.get(
     "/preview",
     response_model=DataPreviewResponse,
     response_model_by_alias=True,
