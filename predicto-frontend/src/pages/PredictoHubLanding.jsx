@@ -1,14 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
-import { motion, useScroll, useTransform, useInView, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export default function PredictoHubLanding() {
   const sectionRef = useRef(null);
-  const { scrollYProgress } = useScroll({
-    target: sectionRef,
-    offset: ["start end", "end start"]
-  });
-  const scale = useTransform(scrollYProgress, [0, 0.5], [0.85, 1.0]);
-  const opacity = useTransform(scrollYProgress, [0, 0.2], [0, 1]);
+
+  useEffect(() => {
+    const handler = () => {
+      console.log('Navigate to dashboard requested');
+    };
+    window.addEventListener('navigate-to-dashboard', handler);
+    return () => window.removeEventListener('navigate-to-dashboard', handler);
+  }, []);
 
   const fadeUp = {
     initial: { opacity: 0, y: 32 },
@@ -40,7 +42,10 @@ export default function PredictoHubLanding() {
           <motion.button
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.98 }}
-            onClick={() => window.location.href = '/dashboard'}
+            onClick={() => {
+              window.dispatchEvent(new CustomEvent('navigate-to-dashboard'));
+              window.location.hash = '#dashboard';
+            }}
             className="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold px-5 py-2 rounded-lg transition-all duration-200"
           >
             Launch Workspace →
@@ -80,7 +85,10 @@ export default function PredictoHubLanding() {
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              onClick={() => window.location.href = '/dashboard'}
+              onClick={() => {
+                window.dispatchEvent(new CustomEvent('navigate-to-dashboard'));
+                window.location.hash = '#dashboard';
+              }}
               className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-8 py-4 rounded-xl text-lg transition-all duration-200"
             >
               Launch Workspace →
@@ -194,7 +202,13 @@ export default function PredictoHubLanding() {
             From CSV upload to executive-grade revenue analysis in under 60 seconds. No data science team required.
           </p>
 
-          <motion.div style={{ scale, opacity }} className="relative mx-auto max-w-5xl mt-16">
+          <motion.div
+            initial={{ opacity: 0, y: 40 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-50px" }}
+            transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+            className="relative mx-auto max-w-5xl mt-16"
+          >
             {/* MacBook Shell */}
             <div className="bg-slate-800 rounded-2xl p-3 shadow-2xl" style={{ boxShadow: '0 40px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.05)' }}>
               {/* Browser Chrome Bar */}
@@ -392,7 +406,10 @@ export default function PredictoHubLanding() {
           <motion.button
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.98 }}
-            onClick={() => window.location.href = '/dashboard'}
+            onClick={() => {
+              window.dispatchEvent(new CustomEvent('navigate-to-dashboard'));
+              window.location.hash = '#dashboard';
+            }}
             className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-12 py-5 rounded-2xl text-xl transition-colors duration-200 inline-flex items-center gap-3"
           >
             Launch Workspace <span className="text-indigo-300">→</span>
@@ -435,7 +452,7 @@ export default function PredictoHubLanding() {
           <div>
             <p className="text-xs font-semibold uppercase tracking-widest text-slate-500 mb-4">Built by</p>
             <p className="text-sm font-semibold text-white mb-1">Omar Elsaber</p>
-            <p className="text-sm text-slate-400 mb-4">AI Engineer / SEG</p>
+            <p className="text-sm text-slate-400 mb-4">AI Engineer @ SEG</p>
             <div className="space-y-2">
               <p className="text-sm text-slate-400 hover:text-indigo-400 transition-colors cursor-pointer">
                 ✉ omarelsaber0@gmail.com
