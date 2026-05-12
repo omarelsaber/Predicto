@@ -1,0 +1,23 @@
+# Root workspace ignore rules
+# Backend runtime and config
+predicto/.env
+predicto/__pycache__/
+predicto/.mypy_cache/
+predicto/.venv/
+predicto/venv/
+predicto/data/uploaded_data.csv
+predicto/*.pyc
+predicto/.pytest_cache/
+
+# Frontend runtime and build artifacts
+predicto-frontend/node_modules/
+predicto-frontend/dist/
+predicto-frontend/.env
+
+# General ignore rules
+node_modules/
+__pycache__/
+.venv/
+venv/
+.env
+.DS_Store

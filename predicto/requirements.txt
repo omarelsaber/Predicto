@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+pandas
+pydantic-settings
+prophet
+xgboost
+scikit-learn
+groq
+python-multipart
