@@ -11,6 +11,9 @@ import DataExplorer from './components/DataExplorer';
 import AlertCenter, { AlertBellButton } from './components/AlertCenter';
 import UploadPage from './components/UploadPage';
 import EmptyDataPlaceholder from './components/EmptyDataPlaceholder';
+import CinematicLanding from './pages/CinematicLanding';
+import AICopilot from './pages/AICopilot';
+import AnalyticsHub from './pages/AnalyticsHub';
 import { LayoutDashboard, Users, Loader2, Download, User, Volume2, ShieldCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -250,6 +253,24 @@ function App() {
             ) : (
               <DataExplorer />
             )}
+          </motion.div>
+        );
+      case 'onboarding':
+        return (
+          <motion.div key="onboarding" initial="initial" animate="in" exit="out" variants={pageVariants} transition={pageTransition}>
+            <CinematicLanding onNavigate={setActiveTab} />
+          </motion.div>
+        );
+      case 'copilot':
+        return (
+          <motion.div key="copilot" initial="initial" animate="in" exit="out" variants={pageVariants} transition={pageTransition}>
+            <AICopilot />
+          </motion.div>
+        );
+      case 'analytics':
+        return (
+          <motion.div key="analytics" initial="initial" animate="in" exit="out" variants={pageVariants} transition={pageTransition}>
+            <AnalyticsHub />
           </motion.div>
         );
       default:
