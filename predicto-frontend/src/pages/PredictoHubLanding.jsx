@@ -40,6 +40,7 @@ export default function PredictoHubLanding() {
           <motion.button
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.98 }}
+            onClick={() => window.location.href = '/dashboard'}
             className="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold px-5 py-2 rounded-lg transition-all duration-200"
           >
             Launch Workspace →
@@ -48,7 +49,13 @@ export default function PredictoHubLanding() {
       </nav>
 
       {/* SECTION 1: THE HOOK */}
-      <section className="min-h-screen flex flex-col justify-center relative overflow-hidden pt-20">
+      <section className="min-h-screen flex flex-col justify-center relative overflow-hidden pt-20" style={{ position: 'relative', overflow: 'hidden' }}>
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full opacity-[0.06] blur-3xl"
+            style={{ background: '#6366f1', animation: 'pulse 8s ease-in-out infinite' }} />
+          <div className="absolute bottom-1/4 right-1/4 w-64 h-64 rounded-full opacity-[0.04] blur-3xl"
+            style={{ background: '#10b981', animation: 'pulse 10s ease-in-out infinite reverse' }} />
+        </div>
         <motion.div
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
@@ -73,6 +80,7 @@ export default function PredictoHubLanding() {
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
+              onClick={() => window.location.href = '/dashboard'}
               className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-8 py-4 rounded-xl text-lg transition-all duration-200"
             >
               Launch Workspace →
@@ -80,6 +88,7 @@ export default function PredictoHubLanding() {
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
+              onClick={() => document.getElementById('platform-section').scrollIntoView({ behavior: 'smooth' })}
               className="border border-slate-700 hover:border-slate-500 text-slate-300 hover:text-white font-medium px-8 py-4 rounded-xl text-lg transition-all duration-200"
             >
               Watch Demo
@@ -173,7 +182,7 @@ export default function PredictoHubLanding() {
       </motion.section>
 
       {/* SECTION 3: THE PRODUCT IN MOTION */}
-      <section className="py-32 overflow-hidden" ref={sectionRef}>
+      <section className="pt-16 pb-32 overflow-hidden" id="platform-section" ref={sectionRef}>
         <div className="max-w-6xl mx-auto px-6">
           <span className="text-xs font-semibold tracking-widest uppercase text-indigo-400 mb-4 block">
             The Platform
@@ -185,66 +194,77 @@ export default function PredictoHubLanding() {
             From CSV upload to executive-grade revenue analysis in under 60 seconds. No data science team required.
           </p>
 
-          <motion.div style={{ scale, opacity }} className="relative mx-auto max-w-5xl">
-            {/* MacBook Mockup */}
-            <div className="bg-slate-800 rounded-2xl p-3 shadow-2xl shadow-black/60">
-              {/* Top Bar */}
-              <div className="bg-slate-900 rounded-t-xl h-8 flex items-center px-4 gap-2 mb-0">
-                <div className="w-3 h-3 rounded-full bg-rose-500/60"></div>
-                <div className="w-3 h-3 rounded-full bg-amber-500/60"></div>
-                <div className="w-3 h-3 rounded-full bg-emerald-500/60"></div>
-                <div className="flex-1 mx-4 bg-slate-800 rounded h-4 flex items-center px-3">
+          <motion.div style={{ scale, opacity }} className="relative mx-auto max-w-5xl mt-16">
+            {/* MacBook Shell */}
+            <div className="bg-slate-800 rounded-2xl p-3 shadow-2xl" style={{ boxShadow: '0 40px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.05)' }}>
+              {/* Browser Chrome Bar */}
+              <div className="bg-slate-900 rounded-t-xl h-9 flex items-center px-4 gap-2">
+                <div className="w-3 h-3 rounded-full bg-rose-500/70"></div>
+                <div className="w-3 h-3 rounded-full bg-amber-500/70"></div>
+                <div className="w-3 h-3 rounded-full bg-emerald-500/70"></div>
+                <div className="flex-1 mx-6 bg-slate-800 rounded-md h-5 flex items-center px-3">
                   <span className="text-xs text-slate-500">app.predictohub.com/dashboard</span>
                 </div>
+                <span className="text-xs text-slate-600">🔒 Secure</span>
               </div>
 
-              {/* Screen */}
-              <div className="bg-slate-950 rounded-b-xl overflow-hidden aspect-[16/9] relative p-3">
-                {/* Mini Sidebar */}
-                <div className="absolute left-0 top-0 bottom-0 w-16 bg-slate-900/80 border-r border-slate-800/40 flex flex-col items-center py-3 gap-4">
-                  <div className="w-6 h-1.5 rounded bg-indigo-600"></div>
-                  <div className="w-6 h-1.5 rounded bg-slate-700"></div>
-                  <div className="w-6 h-1.5 rounded bg-slate-700"></div>
-                  <div className="w-6 h-1.5 rounded bg-slate-700"></div>
+              {/* Screen Area */}
+              <div className="bg-slate-950 rounded-b-xl overflow-hidden w-full flex relative" style={{ aspectRatio: '16/9' }}>
+                {/* Left Mini-Sidebar */}
+                <div className="w-14 bg-slate-900/90 border-r border-slate-800/40 flex flex-col items-center py-4 gap-3 flex-shrink-0">
+                  <div className="w-6 h-6 rounded-lg bg-indigo-600 flex items-center justify-center">
+                    <span className="text-white text-xs font-bold">P</span>
+                  </div>
+                  <div className="w-8 h-px bg-slate-800 my-1"></div>
+                  <div className="w-8 h-6 rounded bg-indigo-600/30 border border-indigo-500/30"></div>
+                  <div className="w-8 h-6 rounded bg-slate-800/60"></div>
+                  <div className="w-8 h-6 rounded bg-slate-800/60"></div>
+                  <div className="w-8 h-6 rounded bg-slate-800/60"></div>
                 </div>
 
-                {/* Mini KPI Bar */}
-                <div className="absolute top-3 left-20 right-3 flex gap-2 h-16">
-                  {[
-                    { label: "NEXT QTR", value: "$61.2k", accent: "text-emerald-400", trend: "+12%" },
-                    { label: "AVG MARGIN", value: "18.4%", accent: "text-emerald-400", trend: "" },
-                    { label: "AT RISK", value: "23", accent: "text-rose-400", trend: "" }
-                  ].map((card, i) => (
-                    <div key={i} className="flex-1 bg-slate-900 rounded-lg p-2 border border-slate-800/50 flex flex-col justify-between">
-                      <span className="text-xs text-slate-500">{card.label}</span>
-                      <div className="flex items-center justify-between">
-                        <span className={`text-sm font-black text-white ${card.accent === "text-emerald-400" && i > 0 ? "text-emerald-400" : card.accent === "text-rose-400" ? "text-rose-400" : ""}`}>
-                          {card.value}
-                        </span>
-                        {card.trend && <span className="text-xs text-emerald-400">{card.trend}</span>}
-                      </div>
+                {/* Right Content Area */}
+                <div className="flex-1 p-3 overflow-hidden flex flex-col gap-2">
+                  {/* KPI Row */}
+                  <div className="grid grid-cols-3 gap-2 flex-shrink-0">
+                    <div className="bg-slate-900 rounded-lg p-2 border border-slate-800/50">
+                      <div className="text-xs text-slate-500 mb-1">NEXT QTR</div>
+                      <div className="text-sm font-black text-white">$61.2k</div>
+                      <div className="text-xs text-emerald-400">↑ +12%</div>
                     </div>
-                  ))}
-                </div>
+                    <div className="bg-slate-900 rounded-lg p-2 border border-slate-800/50">
+                      <div className="text-xs text-slate-500 mb-1">AVG MARGIN</div>
+                      <div className="text-sm font-black text-emerald-400">18.4%</div>
+                    </div>
+                    <div className="bg-slate-900 rounded-lg p-2 border border-slate-800/50">
+                      <div className="text-xs text-slate-500 mb-1">AT RISK</div>
+                      <div className="text-sm font-black text-rose-400">23</div>
+                    </div>
+                  </div>
 
-                {/* Mini Chart */}
-                <div className="absolute top-20 left-20 right-3 bottom-3 bg-slate-900 rounded-lg border border-slate-800/50 p-2">
-                  <svg width="100%" height="100%" viewBox="0 0 300 120" preserveAspectRatio="none">
-                    <polyline points="0,80 30,70 60,55 90,65 120,50 150,40 180,35 210,30 240,25 270,28 300,22"
-                      fill="none" stroke="#6366f1" strokeWidth="1.5" />
-                    <polyline points="0,50 30,48 60,52 90,45 120,42 150,38 180,35 210,32 240,38 270,42 300,44"
-                      fill="none" stroke="#10b981" strokeWidth="1.5" />
-                    <polyline points="0,95 30,90 60,85 90,88 120,82 150,78 180,75 210,72 240,68 270,65 300,60"
-                      fill="none" stroke="#f59e0b" strokeWidth="1.5" />
-                    <line x1="210" y1="0" x2="210" y2="120" stroke="#475569" strokeDasharray="3,2" strokeWidth="1" />
-                  </svg>
+                  {/* Chart Area */}
+                  <div className="flex-1 bg-slate-900 rounded-lg border border-slate-800/50 p-2 min-h-0 flex flex-col">
+                    <div className="text-xs text-slate-500 mb-2">15-Month Revenue Forecast</div>
+                    <svg width="100%" height="100%" viewBox="0 0 400 80" preserveAspectRatio="none">
+                      <defs>
+                        <linearGradient id="indigo-fade" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#6366f1" stopOpacity="0.3"/>
+                          <stop offset="100%" stopColor="#6366f1" stopOpacity="0"/>
+                        </linearGradient>
+                      </defs>
+                      <path d="M0,60 C20,55 40,45 80,40 C120,35 140,42 180,38 C220,34 250,28 290,22 C330,16 360,18 400,14" fill="url(#indigo-fade)" />
+                      <polyline points="0,60 40,50 80,40 120,44 160,36 200,30 240,25 280,20 320,18 360,16 400,14" fill="none" stroke="#6366f1" strokeWidth="1.5"/>
+                      <polyline points="0,45 40,42 80,48 120,40 160,35 200,32 240,35 280,38 320,42 360,40 400,38" fill="none" stroke="#10b981" strokeWidth="1.5"/>
+                      <polyline points="0,70 40,65 80,60 120,62 160,56 200,52 240,48 280,44 320,40 360,38 400,35" fill="none" stroke="#f59e0b" strokeWidth="1.5"/>
+                      <line x1="290" y1="0" x2="290" y2="80" stroke="#475569" strokeDasharray="3,2" strokeWidth="0.8"/>
+                    </svg>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <p className="text-center mt-8 text-sm text-slate-500">
-              Live demo · Pre-loaded with 9,994 real transactions · No setup required
-            </p>
+            <div className="text-center mt-6 text-sm text-slate-500">
+              Live demo · 9,994 real transactions · No setup required
+            </div>
           </motion.div>
         </div>
       </section>
@@ -353,7 +373,7 @@ export default function PredictoHubLanding() {
       </section>
 
       {/* SECTION 6: FINAL CTA */}
-      <section className="relative py-40 max-w-4xl mx-auto px-6 text-center overflow-hidden">
+      <section className="relative py-24 max-w-4xl mx-auto px-6 text-center overflow-hidden">
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="w-96 h-96 rounded-full bg-indigo-600/5 blur-3xl" />
         </div>
@@ -372,6 +392,7 @@ export default function PredictoHubLanding() {
           <motion.button
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.98 }}
+            onClick={() => window.location.href = '/dashboard'}
             className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-12 py-5 rounded-2xl text-xl transition-colors duration-200 inline-flex items-center gap-3"
           >
             Launch Workspace <span className="text-indigo-300">→</span>
@@ -413,17 +434,17 @@ export default function PredictoHubLanding() {
           {/* Column 3: Contact */}
           <div>
             <p className="text-xs font-semibold uppercase tracking-widest text-slate-500 mb-4">Built by</p>
-            <p className="text-sm font-semibold text-white mb-1">[YOUR NAME]</p>
-            <p className="text-sm text-slate-400 mb-4">[YOUR TITLE / INSTITUTION]</p>
+            <p className="text-sm font-semibold text-white mb-1">Omar Elsaber</p>
+            <p className="text-sm text-slate-400 mb-4">AI Engineer / SEG</p>
             <div className="space-y-2">
               <p className="text-sm text-slate-400 hover:text-indigo-400 transition-colors cursor-pointer">
-                ✉ [YOUR EMAIL]
+                ✉ omarelsaber0@gmail.com
               </p>
               <p className="text-sm text-slate-400 hover:text-indigo-400 transition-colors cursor-pointer">
-                in linkedin.com/in/[YOUR HANDLE]
+                in linkedin.com/in/omarelsaber
               </p>
               <p className="text-sm text-slate-400 hover:text-indigo-400 transition-colors cursor-pointer">
-                {'{}'} github.com/[YOUR HANDLE]
+                {'{}'} github.com/omarelsaber
               </p>
             </div>
           </div>

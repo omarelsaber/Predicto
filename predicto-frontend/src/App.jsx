@@ -15,7 +15,7 @@ import { Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 function App() {
-  const [activeTab, setActiveTab] = useState('revenue-overview');
+  const [activeTab, setActiveTab] = useState('landing');
   const [isBooting, setIsBooting] = useState(true);
 
   useEffect(() => {
