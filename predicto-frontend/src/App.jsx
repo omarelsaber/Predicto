@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import api, { API_ORIGIN } from './api';
 import { useSynthesis } from './hooks/useSynthesis';
 import PredictoSidebar from './components/PredictoSidebar';
+import PredictoHubLanding from './pages/PredictoHubLanding';
 import RevenueOverview from './pages/RevenueOverview';
 import DealScorer from './pages/DealScorer';
 import PersonaGallery from './pages/PersonaGallery';
@@ -37,6 +38,15 @@ function App() {
 
   const renderContent = () => {
     switch (activeTab) {
+      case 'landing':
+        return (
+          <motion.div 
+            key="landing"
+            initial="initial" animate="in" exit="out" variants={pageVariants} transition={pageTransition}
+          >
+            <PredictoHubLanding />
+          </motion.div>
+        );
       case 'revenue-overview':
         return (
           <motion.div 
@@ -93,6 +103,8 @@ function App() {
     }
   };
 
+  const isLanding = activeTab === 'landing';
+
   return (
     <div className="flex h-screen bg-slate-950 font-sans text-slate-200 overflow-hidden">
       {isBooting && (
@@ -105,15 +117,21 @@ function App() {
         </div>
       )}
 
-      <PredictoSidebar activeTab={activeTab} setActiveTab={setActiveTab} />
+      {!isLanding && <PredictoSidebar activeTab={activeTab} setActiveTab={setActiveTab} />}
 
-      <div className="ml-56 flex-1 flex flex-col h-full overflow-hidden bg-slate-950">
+      <div className={`flex-1 flex flex-col h-full overflow-hidden bg-slate-950 ${!isLanding ? 'ml-56' : ''}`}>
         <main className="flex-1 overflow-y-auto custom-scrollbar relative z-0 min-w-0">
-          <div className="p-8 max-w-[1600px] mx-auto w-full">
+          {isLanding ? (
             <AnimatePresence mode="wait">
               {renderContent()}
             </AnimatePresence>
-          </div>
+          ) : (
+            <div className="p-8 max-w-[1600px] mx-auto w-full">
+              <AnimatePresence mode="wait">
+                {renderContent()}
+              </AnimatePresence>
+            </div>
+          )}
         </main>
       </div>
     </div>

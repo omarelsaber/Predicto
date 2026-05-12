@@ -1,7 +1,8 @@
-import { BarChart3, TrendingUp, Users, Database, Upload } from 'lucide-react';
+import { BarChart3, TrendingUp, Users, Database, Upload, Globe } from 'lucide-react';
 
 export default function PredictoSidebar({ activeTab, setActiveTab }) {
   const navItems = [
+    { id: 'landing', label: 'Marketing Site', icon: Globe },
     { id: 'revenue-overview', label: 'Revenue Overview', icon: BarChart3 },
     { id: 'deal-scorer', label: 'Deal Scorer', icon: TrendingUp },
     { id: 'personas', label: 'Persona Gallery', icon: Users },
