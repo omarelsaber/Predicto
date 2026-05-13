@@ -556,3 +556,53 @@ class DataPreviewResponse(BaseModel):
     data: list[DataPreviewRecord] = Field(
         description="Up to 100 preview rows for the Data Explorer.",
     )
+# ─────────────────────────────────────────────────────────────────────────────
+# § 10  Revenue Overview
+# ─────────────────────────────────────────────────────────────────────────────
+
+class RevenueForecastPoint(BaseModel):
+    """Monthly revenue forecast point per segment."""
+    model_config = ConfigDict(frozen=True)
+    month: str
+    enterprise: float = Field(alias="Enterprise")
+    smb: float = Field(alias="SMB")
+    strategic: float = Field(alias="Strategic")
+    is_forecast: bool = Field(default=False, alias="isForecast")
+
+class MatrixRow(BaseModel):
+    """Single row in the Discount Ceiling Matrix."""
+    model_config = ConfigDict(frozen=True)
+    segment: str
+    na: str = Field(alias="NA")
+    eu: str = Field(alias="EU")
+    apac: str = Field(alias="APAC")
+
+class RevenueOverviewResponse(BaseModel):
+    """
+    Unified response for the dashboard landing page.
+    Aggregates metrics from all three ML pillars.
+    """
+    model_config = ConfigDict(frozen=True)
+
+    next_quarter_revenue: str = Field(description="Formatted next quarter revenue (e.g. '$61.2k').")
+    revenue_growth: str = Field(description="Formatted growth vs current (e.g. '+12%').")
+    portfolio_margin_health: float = Field(description="Average margin across all transactions.")
+    margin_target: float = Field(default=25.0, description="Target margin benchmark.")
+    risk_alerts: int = Field(description="Count of deals below margin floor.")
+    recovery_opportunity: str = Field(description="Formatted total potential margin recovery (e.g. '$1.2M').")
+    
+    forecast_data: list[RevenueForecastPoint] = Field(description="15-month revenue history and forecast.")
+    sparkline_revenue: list[dict[str, float]] = Field(description="Recent revenue trend for KPI card sparkline.")
+    
+    discount_matrix: list[MatrixRow] = Field(description="Segment x Region discount ceiling matrix.")
+    
+    model_health: dict[str, float] = Field(
+        description="R2 scores for the margin and forecast engines.",
+        examples=[{"Margin Engine": 0.94, "Forecast Model": 0.89}]
+    )
+
+class AIAnalyzeResponse(BaseModel):
+    """Non-streaming response for the AI Analyst box."""
+    model_config = ConfigDict(frozen=True)
+    insight: str = Field(description="Generated textual insight.")
+    timestamp: str = Field(description="ISO timestamp of generation.")

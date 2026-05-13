@@ -1,57 +1,94 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   ComposedChart, LineChart, BarChart, Line, Bar, XAxis, YAxis,
   CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceArea
 } from 'recharts';
-import { TrendingUp, AlertTriangle, Download, Zap, FileText } from 'lucide-react';
+import { TrendingUp, AlertTriangle, Download, Zap, FileText, Loader2, BrainCircuit } from 'lucide-react';
+import api, { API_ORIGIN } from '../api';
 
-export default function RevenueOverview() {
+export default function RevenueOverview({ onNavigate }) {
   const [query, setQuery] = useState('');
+  const [revenueData, setRevenueData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [lastInsight, setLastInsight] = useState('Select an area or ask a question to generate a predictive insight.');
 
-  // Forecast data - 15 months with 3 segments
-  const forecastData = [
-    { month: 'Oct 23', Enterprise: 24000, SMB: 8500, Strategic: 5200 },
-    { month: 'Nov 23', Enterprise: 26500, SMB: 9100, Strategic: 5800 },
-    { month: 'Dec 23', Enterprise: 28200, SMB: 9400, Strategic: 6200 },
-    { month: 'Jan 24', Enterprise: 25800, SMB: 8900, Strategic: 5900 },
-    { month: 'Feb 24', Enterprise: 27300, SMB: 9200, Strategic: 6100 },
-    { month: 'Mar 24', Enterprise: 29500, SMB: 9800, Strategic: 6500 },
-    { month: 'Apr 24', Enterprise: 31200, SMB: 10200, Strategic: 6800 },
-    { month: 'May 24', Enterprise: 32100, SMB: 10500, Strategic: 7100 },
-    { month: 'Jun 24', Enterprise: 30800, SMB: 10100, Strategic: 6900 },
-    { month: 'Jul 24', Enterprise: 33400, SMB: 10900, Strategic: 7400 },
-    { month: 'Aug 24', Enterprise: 35200, SMB: 11300, Strategic: 7700 },
-    { month: 'Sep 24', Enterprise: 36800, SMB: 11800, Strategic: 8000 },
-    // Forecast
-    { month: 'Oct 24', Enterprise: 38200, SMB: 12200, Strategic: 8300, isForecast: true },
-    { month: 'Nov 24', Enterprise: 39600, SMB: 12600, Strategic: 8600, isForecast: true },
-    { month: 'Dec 24', Enterprise: 41200, SMB: 13100, Strategic: 8900, isForecast: true }
-  ];
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        const res = await api.get('/revenue/overview');
+        setRevenueData(res.data);
+      } catch (err) {
+        console.error('Failed to fetch revenue overview:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchData();
+  }, []);
 
-  // Sparkline data for KPI trends
-  const sparklineRevenue = [
-    { value: 52000 }, { value: 54500 }, { value: 51200 },
-    { value: 56800 }, { value: 58200 }, { value: 61200 }
-  ];
+  const handleGenerateInsight = async () => {
+    if (!query.trim()) return;
+    setAnalyzing(true);
+    try {
+      const res = await api.post('/ai/analyze', { query });
+      setLastInsight(res.data.insight);
+      setQuery('');
+    } catch (err) {
+      console.error('AI Analysis failed:', err);
+      setLastInsight('Error generating insight. Please ensure the backend is running.');
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  const handleExport = () => {
+    window.open(`${API_ORIGIN}/api/v1/report`, '_blank');
+  };
+
+  if (loading) {
+    return (
+      <div className="h-[60vh] flex flex-col items-center justify-center text-slate-400">
+        <Loader2 className="w-10 h-10 animate-spin text-indigo-500 mb-4" />
+        <p className="text-lg font-medium">Hydrating revenue intelligence...</p>
+      </div>
+    );
+  }
+
+  // Use live data with fallbacks
+  const forecastData = revenueData?.forecast_data || [];
+  const sparklineRevenue = revenueData?.sparkline_revenue || [];
+  const matrix = revenueData?.discount_matrix || [];
+  const health = revenueData?.model_health || { "Margin Engine": 0, "Forecast Model": 0 };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 relative bg-transparent">
+      <video 
+        autoPlay 
+        loop 
+        muted 
+        playsInline 
+        className="fixed inset-0 w-full h-full object-cover -z-10 opacity-20 pointer-events-none"
+      >
+        <source src="/revenue-overview-bg.mp4" type="video/mp4" />
+      </video>
+
       {/* Row 1: KPI Bar */}
       <div className="grid grid-cols-3 gap-5">
         {/* KPI 1: Revenue */}
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
-          <div className="flex justify-between items-start mb-4">
+        <div className="bg-slate-900/40 backdrop-blur-xl border border-white/10 rounded-xl p-4">
+          <div className="flex justify-between items-start mb-2">
             <div>
-              <p className="text-xs uppercase tracking-wider text-slate-400 font-bold">Next Quarter Revenue</p>
-              <p className="text-4xl font-black text-white mt-2">$61.2k</p>
+              <p className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">Next Quarter Revenue</p>
+              <p className="text-2xl font-black text-white mt-1">{revenueData?.next_quarter_revenue || '$0.0k'}</p>
             </div>
-            <div className="flex items-center gap-1 bg-emerald-500/15 text-emerald-400 text-xs font-bold px-2 py-1 rounded">
-              <TrendingUp size={12} />
-              +12%
+            <div className="flex items-center gap-1 bg-emerald-500/15 text-emerald-400 text-[10px] font-bold px-1.5 py-0.5 rounded">
+              <TrendingUp size={10} />
+              {revenueData?.revenue_growth || '+0%'}
             </div>
           </div>
-          <div className="h-12">
-            <ResponsiveContainer width="100%" height="100%">
+          <div className="w-full h-12 relative overflow-hidden">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <LineChart data={sparklineRevenue}>
                 <Line
                   type="monotone"
@@ -67,34 +104,39 @@ export default function RevenueOverview() {
         </div>
 
         {/* KPI 2: Margin Health */}
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
-          <p className="text-xs uppercase tracking-wider text-slate-400 font-bold">Portfolio Margin Health</p>
-          <p className="text-4xl font-black text-emerald-400 mt-2">18.4%</p>
-          <div className="mt-4 h-2 bg-slate-800 rounded-full overflow-hidden">
-            <div className="h-full bg-gradient-to-r from-emerald-500 to-emerald-600 w-[73%]"></div>
+        <div className="bg-slate-900/40 backdrop-blur-xl border border-white/10 rounded-xl p-4">
+          <p className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">Portfolio Margin Health</p>
+          <p className="text-2xl font-black text-emerald-400 mt-1">{revenueData?.portfolio_margin_health || 0}%</p>
+          <div className="mt-3 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+            <div 
+              className="h-full bg-gradient-to-r from-emerald-500 to-emerald-600 transition-all duration-1000" 
+              style={{ width: `${Math.min(100, (revenueData?.portfolio_margin_health || 0) / (revenueData?.margin_target || 25) * 100)}%` }}
+            ></div>
           </div>
-          <p className="text-xs text-slate-400 mt-2">Target: 25%</p>
+          <p className="text-[10px] text-slate-400 mt-1.5">Target: {revenueData?.margin_target || 25}%</p>
         </div>
 
         {/* KPI 3: Risk Alerts */}
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
-          <div className="flex justify-between items-start mb-4">
-            <p className="text-xs uppercase tracking-wider text-slate-400 font-bold">Risk Alerts</p>
-            <AlertTriangle size={16} className="text-rose-500" />
+        <div className="bg-slate-900/40 backdrop-blur-xl border border-white/10 rounded-xl p-4">
+          <div className="flex justify-between items-start mb-2">
+            <p className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">Risk Alerts</p>
+            <AlertTriangle size={14} className="text-rose-500" />
           </div>
-          <p className="text-4xl font-black text-rose-400 mt-2">23</p>
-          <p className="text-xs text-slate-400 mt-2">Deals at margin cliff</p>
-          <p className="text-xs text-amber-400 font-medium mt-1">+$1.2M recovery opportunity</p>
+          <div className="flex items-baseline gap-2">
+            <p className="text-2xl font-black text-rose-400 mt-1">{revenueData?.risk_alerts || 0}</p>
+            <span className="text-[10px] text-slate-400 font-medium">Deals at margin cliff</span>
+          </div>
+          <p className="text-[10px] text-amber-400 font-medium mt-2">+{revenueData?.recovery_opportunity || '$0.0M'} recovery opportunity</p>
         </div>
       </div>
 
       {/* Row 2: Forecast Chart + AI Panel */}
       <div className="grid grid-cols-3 gap-5">
         {/* Forecast Chart */}
-        <div className="col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-6">
+        <div className="col-span-2 bg-slate-900/40 backdrop-blur-xl border border-white/10 rounded-xl p-6">
           <h3 className="text-sm font-bold text-white mb-4">15-Month Revenue Forecast</h3>
-          <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%">
+          <div className="w-full h-[350px] relative overflow-hidden">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <ComposedChart data={forecastData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="gradIndigo" x1="0" y1="0" x2="0" y2="1">
@@ -124,21 +166,39 @@ export default function RevenueOverview() {
         </div>
 
         {/* AI Analyst Panel */}
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 flex flex-col">
-          <h3 className="text-sm font-bold text-white mb-4">AI Analyst</h3>
-          <div className="bg-slate-800/50 rounded-lg p-4 mb-4 flex-1 text-sm text-slate-300 border border-slate-700/50">
-            <p className="text-xs text-slate-400 mb-2">Latest insight:</p>
-            <p>Enterprise segment shows +15% growth momentum. Consider increasing capacity to capture market opportunity.</p>
+        <div className="bg-slate-900/40 backdrop-blur-xl border border-white/10 rounded-xl p-6 flex flex-col">
+          <div className="flex items-center gap-2 mb-4">
+            <BrainCircuit size={16} className="text-indigo-400" />
+            <h3 className="text-sm font-bold text-white">AI Analyst</h3>
+          </div>
+          <div className="bg-slate-800/50 rounded-lg p-4 mb-4 flex-1 text-sm text-slate-300 border border-slate-700/50 overflow-y-auto">
+            {analyzing ? (
+              <div className="flex flex-col items-center justify-center h-full gap-3 opacity-60">
+                <Loader2 className="w-6 h-6 animate-spin text-indigo-400" />
+                <p className="text-xs font-medium italic">Thinking...</p>
+              </div>
+            ) : (
+              <>
+                <p className="text-[10px] text-slate-500 uppercase font-bold mb-2">Predictive Insight</p>
+                <p className="leading-relaxed">{lastInsight}</p>
+              </>
+            )}
           </div>
           <textarea
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Ask a question..."
-            className="w-full bg-slate-800/50 border border-slate-700 rounded-lg p-2.5 text-sm text-slate-200 placeholder-slate-500 resize-none focus:outline-none focus:ring-1 focus:ring-indigo-500 mb-3"
-            rows="3"
+            onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleGenerateInsight())}
+            placeholder="Ask about segment risks or recovery..."
+            className="w-full bg-slate-800/50 border border-slate-700 rounded-lg p-2.5 text-sm text-slate-200 placeholder-slate-500 resize-none focus:outline-none focus:ring-1 focus:ring-indigo-500 mb-3 transition-all"
+            rows="2"
+            disabled={analyzing}
           />
-          <button className="w-full bg-indigo-500 hover:bg-indigo-600 text-white font-medium py-2.5 rounded-lg transition-colors text-sm">
-            Generate Insight
+          <button 
+            onClick={handleGenerateInsight}
+            disabled={analyzing || !query.trim()}
+            className="w-full bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 disabled:hover:bg-indigo-500 text-white font-bold py-2 rounded-lg transition-all text-xs flex items-center justify-center gap-2"
+          >
+            {analyzing ? 'Processing...' : 'Generate Insight'}
           </button>
         </div>
       </div>
@@ -146,9 +206,9 @@ export default function RevenueOverview() {
       {/* Row 3: Discount Matrix + Model Health + Actions */}
       <div className="grid grid-cols-3 gap-5">
         {/* Discount Ceiling Matrix */}
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
+        <div className="bg-slate-900/40 backdrop-blur-xl border border-white/10 rounded-xl p-5">
           <p className="text-xs uppercase tracking-wider text-slate-400 font-bold mb-4">Discount Ceiling Matrix</p>
-          <table className="w-full text-xs">
+          <table className="w-full text-[10px]">
             <thead>
               <tr className="border-b border-slate-700">
                 <th className="text-left py-2 text-slate-400 font-medium">Segment</th>
@@ -158,65 +218,66 @@ export default function RevenueOverview() {
               </tr>
             </thead>
             <tbody>
-              <tr className="border-b border-slate-700/50">
-                <td className="py-2 text-slate-300">Enterprise</td>
-                <td className="text-center py-2 text-emerald-400">8%</td>
-                <td className="text-center py-2 text-emerald-400">10%</td>
-                <td className="text-center py-2 text-amber-400">15%</td>
-              </tr>
-              <tr className="border-b border-slate-700/50">
-                <td className="py-2 text-slate-300">SMB</td>
-                <td className="text-center py-2 text-amber-400">20%</td>
-                <td className="text-center py-2 text-amber-400">18%</td>
-                <td className="text-center py-2 text-rose-400">25%</td>
-              </tr>
-              <tr>
-                <td className="py-2 text-slate-300">Strategic</td>
-                <td className="text-center py-2 text-rose-400">28%</td>
-                <td className="text-center py-2 text-rose-400">30%</td>
-                <td className="text-center py-2 text-rose-400">35%</td>
-              </tr>
+              {matrix.map((row, idx) => (
+                <tr key={idx} className="border-b border-slate-700/50 last:border-0">
+                  <td className="py-2 text-slate-300 font-medium">{row.segment}</td>
+                  <td className="text-center py-2 text-emerald-400">{row.NA}</td>
+                  <td className="text-center py-2 text-emerald-400">{row.EU}</td>
+                  <td className="text-center py-2 text-amber-400">{row.APAC}</td>
+                </tr>
+              ))}
+              {matrix.length === 0 && (
+                <tr>
+                  <td colSpan="4" className="py-4 text-center text-slate-500 italic">No matrix data available</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
 
         {/* Model Health */}
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
+        <div className="bg-slate-900/40 backdrop-blur-xl border border-white/10 rounded-xl p-5">
           <p className="text-xs uppercase tracking-wider text-slate-400 font-bold mb-4">Model Health</p>
-          <div className="space-y-3">
-            <div>
-              <div className="flex justify-between items-center mb-1">
-                <span className="text-xs text-slate-400">Margin Engine</span>
-                <span className="text-sm font-bold text-emerald-400">0.94</span>
+          <div className="space-y-4">
+            {Object.entries(health).map(([name, r2]) => (
+              <div key={name}>
+                <div className="flex justify-between items-center mb-1.5">
+                  <span className="text-[10px] text-slate-400">{name}</span>
+                  <span className="text-xs font-black text-emerald-400">{r2.toFixed(2)}</span>
+                </div>
+                <div className="h-1 bg-slate-800 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-emerald-500 transition-all duration-1000" 
+                    style={{ width: `${r2 * 100}%` }}
+                  ></div>
+                </div>
               </div>
-              <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                <div className="h-full bg-emerald-500 w-[94%]"></div>
-              </div>
-            </div>
-            <div>
-              <div className="flex justify-between items-center mb-1">
-                <span className="text-xs text-slate-400">Forecast Model</span>
-                <span className="text-sm font-bold text-emerald-400">0.89</span>
-              </div>
-              <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                <div className="h-full bg-emerald-500 w-[89%]"></div>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
 
         {/* Quick Actions */}
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
+        <div className="bg-slate-900/40 backdrop-blur-xl border border-white/10 rounded-xl p-5">
           <p className="text-xs uppercase tracking-wider text-slate-400 font-bold mb-4">Quick Actions</p>
-          <div className="space-y-2">
-            <button className="w-full bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-400 font-medium py-2 rounded-lg text-sm transition-colors border border-indigo-500/30 flex items-center justify-center gap-2">
+          <div className="grid grid-cols-1 gap-2">
+            <button 
+              onClick={() => onNavigate('deal-scorer')}
+              className="w-full bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 font-bold py-2.5 rounded-lg text-xs transition-all border border-indigo-500/20 flex items-center justify-center gap-2"
+            >
               <Zap size={14} />
               Score Deal
             </button>
-            <button className="w-full bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-400 font-medium py-2 rounded-lg text-sm transition-colors border border-indigo-500/30">
+            <button 
+              onClick={() => onNavigate('personas')}
+              className="w-full bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 font-bold py-2.5 rounded-lg text-xs transition-all border border-indigo-500/20 flex items-center justify-center gap-2"
+            >
+              <FileText size={14} />
               View Personas
             </button>
-            <button className="w-full bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-400 font-medium py-2 rounded-lg text-sm transition-colors border border-indigo-500/30 flex items-center justify-center gap-2">
+            <button 
+              onClick={handleExport}
+              className="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-2.5 rounded-lg text-xs transition-all border border-slate-700 flex items-center justify-center gap-2"
+            >
               <Download size={14} />
               Export Report
             </button>

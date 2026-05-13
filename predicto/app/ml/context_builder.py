@@ -404,10 +404,15 @@ def build_context(
     ──────
     ValueError : if all three pillar inputs are empty (nothing to build).
     """
-    if not forecasts and not margin.at_risk_deals and not segmentation.personas:
+    # Guard against None or empty inputs to prevent crashes
+    has_forecasts = bool(forecasts)
+    has_margin = margin is not None and bool(margin.at_risk_deals)
+    has_segmentation = segmentation is not None and bool(segmentation.personas)
+
+    if not has_forecasts and not has_margin and not has_segmentation:
         raise ValueError(
             "build_context received empty outputs from all three pillars. "
-            "Ensure ML training has completed before calling synthesis."
+            "Analytical context is currently unavailable."
         )
 
     pruning_log: list[str] = []
@@ -418,12 +423,12 @@ def build_context(
     if forecasts:
         pillar_chunks.append(_prune_forecast(forecasts, pruning_log))
 
-    if margin:
+    if margin is not None:
         pillar_chunks.append(
             _prune_margin(margin, max_at_risk_deals, pruning_log)
         )
 
-    if segmentation and segmentation.personas:
+    if segmentation is not None and segmentation.personas:
         pillar_chunks.append(_prune_segmentation(segmentation, pruning_log))
 
     # ── Budget-aware assembly ─────────────────────────────────────────────

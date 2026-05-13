@@ -1,3 +1,4 @@
+import axios from 'axios';
 import { useRef, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Send, Loader2, Lightbulb } from 'lucide-react';
@@ -9,13 +10,13 @@ const ChatMessage = ({ message, isUser, isTyping }) => {
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
-      className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-6 w-full`}
+      className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-8 w-full`}
     >
       <div
-        className={`max-w-2xl px-6 py-4 rounded-lg ${
+        className={`max-w-[75%] px-6 py-4 rounded-2xl shadow-xl ${
           isUser
-            ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-br-none'
-            : 'bg-slate-800 text-slate-100 border border-slate-700 rounded-bl-none'
+            ? 'bg-purple-600/80 backdrop-blur-xl text-white rounded-tr-none border border-white/20 self-end'
+            : 'bg-white/5 backdrop-blur-md border border-white/10 text-slate-100 rounded-tl-none self-start'
         }`}
       >
         {isTyping ? (
@@ -45,7 +46,7 @@ const SuggestionCard = ({ text, icon: Icon, onClick }) => (
     whileHover={{ scale: 1.02, translateY: -2 }}
     whileTap={{ scale: 0.98 }}
     onClick={onClick}
-    className="flex-1 p-4 bg-slate-800 border border-slate-700 rounded-lg hover:border-indigo-500/50 transition-all text-left min-h-24 flex flex-col justify-between"
+    className="flex-1 p-4 bg-slate-900/40 backdrop-blur-xl border border-white/10 rounded-lg hover:border-indigo-500/50 transition-all text-left min-h-24 flex flex-col justify-between"
   >
     <Icon size={20} className="text-indigo-400 mb-2" />
     <p className="text-sm text-slate-200 leading-relaxed">{text}</p>
@@ -84,19 +85,21 @@ export default function AICopilot() {
     // Add user message to history
     setChatHistory((prev) => [...prev, { role: 'user', content: userMessage }]);
 
-    // Simulate API call delay
-    setTimeout(() => {
-      // Find a mock response (in production, this would be from Groq API)
-      const mockResponse =
-        mockAIResponses.find((r) => r.query.toLowerCase().includes(userMessage.toLowerCase()?.split(' ')[0])) ||
-        mockAIResponses[Math.floor(Math.random() * mockAIResponses.length)];
+    try {
+      // Connect to real backend - ensuring endpoint matches backend router
+      const response = await axios.post('http://localhost:8001/api/v1/ai/analyze', {
+        query: userMessage
+      });
+
+      // Backend returns { insight: "..." } as per AIAnalyzeResponse schema
+      const aiResponse = response.data.insight || "I've analyzed your request but couldn't generate a specific insight at this moment.";
 
       setIsLoading(false);
       setIsStreaming(true);
 
-      // Simulate streaming response with typing effect
+      // Simulate streaming response with typing effect for a premium feel
       let currentText = '';
-      const chars = mockResponse.response.split('');
+      const chars = aiResponse.split('');
 
       const streamChar = (index) => {
         if (index < chars.length) {
@@ -111,14 +114,20 @@ export default function AICopilot() {
             return updated;
           });
 
-          setTimeout(() => streamChar(index + 1), 15);
+          setTimeout(() => streamChar(index + 1), 5); // Faster typing
         } else {
           setIsStreaming(false);
         }
       };
 
       streamChar(0);
-    }, 800);
+    } catch (error) {
+      console.error('Chat Error (Real-time Context):', error);
+      setIsLoading(false);
+      
+      const errorMsg = "I'm having trouble connecting to the synthesis engine. Please ensure the backend server is running on port 8001.";
+      setChatHistory((prev) => [...prev, { role: 'assistant', content: errorMsg }]);
+    }
   };
 
   const handleSuggestion = (suggestion) => {
@@ -133,15 +142,22 @@ export default function AICopilot() {
   };
 
   return (
-    <div className="h-screen w-full flex flex-col bg-gradient-to-b from-slate-950 to-slate-900 overflow-hidden">
-      {/* Header */}
-      <div className="px-6 py-6 border-b border-slate-800 bg-slate-900/50 backdrop-blur">
-        <h1 className="text-2xl font-bold text-white">Revenue Intelligence Assistant</h1>
-        <p className="text-sm text-slate-400 mt-2">Ask about forecasts, growth opportunities, and business insights</p>
-      </div>
+    <div className="h-screen w-full flex flex-col bg-transparent overflow-hidden relative">
+      <video 
+        autoPlay 
+        loop 
+        muted 
+        playsInline 
+        className="fixed inset-0 w-full h-full object-cover -z-20"
+        src="/copilot-bg.mp4"
+      />
+
+      <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-[3px] -z-10"></div>
+
+
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar px-6 py-8">
+      <div className="flex-1 overflow-y-auto scrollbar-hide px-6 py-8">
         {chatHistory.length === 0 && !isLoading ? (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -203,17 +219,17 @@ export default function AICopilot() {
       </div>
 
       {/* Input Area */}
-      <div className="px-6 py-6 border-t border-slate-800 bg-slate-900/50 backdrop-blur">
-        <div className="max-w-3xl mx-auto">
-          <div className="flex gap-4 items-end">
+      <div className="relative z-10 w-full">
+        <div className="max-w-3xl mx-auto pb-10 pt-2 px-6">
+          <div className="relative flex items-center bg-slate-800/50 backdrop-blur-3xl border border-white/10 rounded-3xl p-1.5 shadow-2xl focus-within:border-indigo-500/50 transition-all">
             <textarea
               ref={textareaRef}
               value={currentInput}
               onChange={(e) => setCurrentInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ask about revenue, forecasts, growth opportunities..."
+              placeholder="Message Predicto AI..."
               disabled={isLoading || isStreaming}
-              className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none max-h-32 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 bg-transparent border-none px-4 py-3 text-white placeholder-slate-500 focus:outline-none resize-none max-h-48 disabled:opacity-50 disabled:cursor-not-allowed leading-relaxed"
               rows={1}
             />
             <motion.button
@@ -221,12 +237,14 @@ export default function AICopilot() {
               whileTap={{ scale: 0.95 }}
               onClick={handleSendMessage}
               disabled={!currentInput.trim() || isLoading || isStreaming}
-              className="p-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg hover:shadow-[0_0_20px_rgba(99,102,241,0.5)] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+              className="p-3 bg-indigo-600 text-white rounded-2xl hover:bg-indigo-500 transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center shadow-lg shrink-0"
             >
-              {isLoading ? <Loader2 size={20} className="animate-spin" /> : <Send size={20} />}
+              {isLoading ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
             </motion.button>
           </div>
-          <p className="text-xs text-slate-500 mt-3">Press Cmd+Enter (Mac) or Ctrl+Enter (Windows) to send</p>
+          <p className="text-[10px] text-slate-600 text-center mt-3 uppercase tracking-widest font-bold opacity-50">
+            Predicto AI can make mistakes. Check important info.
+          </p>
         </div>
       </div>
     </div>

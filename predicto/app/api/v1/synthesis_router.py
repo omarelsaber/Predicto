@@ -23,18 +23,20 @@ import json
 import logging
 from typing import AsyncGenerator
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
 from app.core.cache import predicto_cache
 from app.models.schemas import (
     ErrorResponse,
     SynthesisRequest,
+    AIAnalyzeResponse,
 )
+from datetime import datetime
 from app.services.deal_service import get_margin_input
 from app.services.forecast_service import get_forecast_inputs
 from app.services.persona_service import get_segmentation_input
-from app.services.synthesis_service import stream_executive_summary
+from app.services.synthesis_service import stream_executive_summary, get_executive_summary_sync
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +65,51 @@ def _error_503() -> StreamingResponse:
         media_type="application/json",
     )
 
+@router.post(
+    "/ai/analyze",
+    response_model=AIAnalyzeResponse,
+    summary="Get a non-streaming AI analysis for quick interactive queries",
+)
+async def ai_analyze(request: SynthesisRequest) -> AIAnalyzeResponse:
+    """
+    Non-streaming version of /synthesise. Used for the interactive analyst box.
+    """
+    # Gather context pillars, but allow them to be empty/None if models aren't ready
+    forecast_inputs = []
+    margin_input = None
+    segmentation_input = None
+
+    if predicto_cache.models_ready():
+        try:
+            forecast_inputs = get_forecast_inputs(periods=3)
+            margin_input = get_margin_input()
+            segmentation_input = get_segmentation_input()
+        except Exception as exc:
+            logger.warning("Context collection failed despite models being ready: %s", exc)
+
+    try:
+        # Assemble context
+        forecast_inputs = get_forecast_inputs(periods=3)
+        margin_input = get_margin_input()
+        segmentation_input = get_segmentation_input()
+        
+        # Call the sync/blocking version of the service
+        # If get_executive_summary_sync doesn't exist, I'll need to add it to synthesis_service.py
+        insight = await get_executive_summary_sync(
+            user_query=request.query,
+            forecasts=forecast_inputs,
+            margin=margin_input,
+            segmentation=segmentation_input,
+        )
+        
+        return AIAnalyzeResponse(
+            insight=insight,
+            timestamp=datetime.now().isoformat()
+        )
+    except Exception as exc:
+        logger.error("AI Analysis failed: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(exc))
+
 
 async def _synthesis_stream(query: str) -> AsyncGenerator[str, None]:
     """
@@ -72,16 +119,19 @@ async def _synthesis_stream(query: str) -> AsyncGenerator[str, None]:
     client always receives a well-formed stream termination rather than a
     silent TCP close.
     """
-    # ── Stage 1: build three-pillar context inputs ────────────────────────────
-    try:
-        forecast_inputs    = get_forecast_inputs(periods=3)
-        margin_input       = get_margin_input()
-        segmentation_input = get_segmentation_input()
-    except Exception as exc:  # noqa: BLE001
-        logger.error("Context build failed: %s", exc, exc_info=True)
-        yield _sse({"type": "error", "message": "Failed to assemble ML context.", "code": "context_build_error"})
-        yield _sse({"type": "done"})
-        return
+    # Stage 1: build three-pillar context inputs (allow fallback if empty)
+    forecast_inputs = []
+    margin_input = None
+    segmentation_input = None
+
+    if predicto_cache.models_ready():
+        try:
+            forecast_inputs    = get_forecast_inputs(periods=3)
+            margin_input       = get_margin_input()
+            segmentation_input = get_segmentation_input()
+        except Exception as exc:
+            logger.warning("Stream context build failed despite models ready: %s", exc)
+
 
     # ── Stage 2: stream LLM chunks ────────────────────────────────────────────
     # stream_executive_summary handles build_context, meta-event generation,
@@ -120,9 +170,7 @@ async def synthesise(request: SynthesisRequest) -> StreamingResponse:
     The response is a `text/event-stream` where each line is a JSON object
     with a `type` discriminator (`meta` | `chunk` | `error` | `done`).
     """
-    if not predicto_cache.models_ready():
-        logger.warning("Synthesis requested before models are ready.")
-        return _error_503()
+
 
     logger.info("Synthesis request: query_len=%d", len(request.query))
     return StreamingResponse(

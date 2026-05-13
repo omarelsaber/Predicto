@@ -82,7 +82,7 @@ _VALIDATION_HOLDOUT: int = 6         # months withheld for walk-forward R²
 _MIN_TRAINING_ROWS: int = 12         # refuse to train on fewer rows than this
 _SEGMENT_COLUMN: str = "Segment"
 _SALES_COLUMN: str = "Sales"
-_PERIOD_COLUMN: str = "period"
+_PERIOD_COLUMN: str = "Month"
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -213,6 +213,10 @@ def train_forecast_models() -> ForecastModels:
     logger.info("Pillar 1 — training forecast models …")
 
     monthly_df = _get_monthly_df_from_cache()
+    
+    # Defensive check: ensure column standardization
+    if _PERIOD_COLUMN not in monthly_df.columns and "period" in monthly_df.columns:
+        monthly_df = monthly_df.rename(columns={"period": _PERIOD_COLUMN})
     settings = get_settings()
 
     # Allow config to override default forecast periods (used for validation logging)

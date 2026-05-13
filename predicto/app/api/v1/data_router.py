@@ -43,7 +43,11 @@ from app.models.schemas import (
     PersonasResponse,
     DataPreviewResponse,
     DataPreviewRecord,
+    RevenueOverviewResponse,
+    RevenueForecastPoint,
+    MatrixRow,
 )
+from app.services.deal_service import get_margin_input
 from app.services.forecast_service import get_forecast_inputs
 from app.services.ingestion_service import ingest, IngestionValidationError
 from app.services.persona_service import get_segmentation_input
@@ -463,30 +467,32 @@ async def generate_report() -> HTMLResponse:
         forecast_rows = ""
         for i, f in enumerate(forecast_inputs, 1):
             trend_color = "#10b981" if f.trend_direction == "up" else ("#ef4444" if f.trend_direction == "down" else "#eab308")
+            bg_color = f"{trend_color}15"
             forecast_rows += f"""
             <tr>
-                <td style="padding:12px 16px;border-bottom:1px solid #e2e8f0;font-weight:600;">{f.segment}</td>
-                <td style="padding:12px 16px;border-bottom:1px solid #e2e8f0;text-align:right;">${f.yhat_next:,.0f}</td>
-                <td style="padding:12px 16px;border-bottom:1px solid #e2e8f0;text-align:right;color:{trend_color};font-weight:600;">{f.pct_change*100:+.1f}%</td>
-                <td style="padding:12px 16px;border-bottom:1px solid #e2e8f0;text-align:center;">
-                    <span style="background:{trend_color}20;color:{trend_color};padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;">{f.trend_direction.upper()}</span>
+                <td style="font-weight:600;color:#0f172a;">{f.segment}</td>
+                <td style="text-align:right;font-family:monospace;font-weight:600;">${f.yhat_next:,.0f}</td>
+                <td style="text-align:right;color:{trend_color};font-weight:700;">{f.pct_change*100:+.1f}%</td>
+                <td style="text-align:center;">
+                    <span class="badge" style="background:{bg_color};color:{trend_color};">{f.trend_direction.upper()}</span>
                 </td>
             </tr>"""
 
         # Build Persona HTML snippet
         persona_rows = ""
         for p in seg_input.personas:
-            risk_color = "#ef4444" if p.churn_risk == "high" else ("#eab308" if p.churn_risk == "medium" else "#10b981")
+            risk_color = "#ef4444" if p.churn_risk == "high" else ("#f59e0b" if p.churn_risk == "medium" else "#10b981")
+            bg_color = f"{risk_color}15"
             persona_rows += f"""
             <tr>
-                <td style="padding:12px 16px;border-bottom:1px solid #e2e8f0;font-weight:600;">{p.persona_label}</td>
-                <td style="padding:12px 16px;border-bottom:1px solid #e2e8f0;">{p.segment}</td>
-                <td style="padding:12px 16px;border-bottom:1px solid #e2e8f0;text-align:right;">${p.avg_deal_value:,.0f}</td>
-                <td style="padding:12px 16px;border-bottom:1px solid #e2e8f0;text-align:right;">{p.avg_margin*100:.1f}%</td>
-                <td style="padding:12px 16px;border-bottom:1px solid #e2e8f0;text-align:center;">
-                    <span style="background:{risk_color}20;color:{risk_color};padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;">{p.churn_risk.upper()}</span>
+                <td style="font-weight:600;color:#0f172a;">{p.persona_label}</td>
+                <td style="color:#64748b;">{p.segment}</td>
+                <td style="text-align:right;font-family:monospace;">${p.avg_deal_value:,.0f}</td>
+                <td style="text-align:right;font-weight:600;">{p.avg_margin*100:.1f}%</td>
+                <td style="text-align:center;">
+                    <span class="badge" style="background:{bg_color};color:{risk_color};">{p.churn_risk.upper()}</span>
                 </td>
-                <td style="padding:12px 16px;border-bottom:1px solid #e2e8f0;">{p.top_region}</td>
+                <td style="color:#64748b;">{p.top_region}</td>
             </tr>"""
 
         # Build Full HTML page with auto-print
@@ -494,103 +500,224 @@ async def generate_report() -> HTMLResponse:
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>Predicto Executive Report</title>
+    <title>Predicto Executive Report — {time.strftime('%Y-%m-%d')}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         * {{ margin: 0; padding: 0; box-sizing: border-box; }}
         body {{
-            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             color: #1e293b;
-            padding: 40px;
-            line-height: 1.6;
+            padding: 0;
+            line-height: 1.5;
             background: #fff;
+            -webkit-print-color-adjust: exact;
+        }}
+        .top-border {{
+            height: 8px;
+            background: linear-gradient(90deg, #4f46e5 0%, #7c3aed 50%, #db2777 100%);
+            width: 100%;
+        }}
+        .container {{
+            padding: 50px 70px;
+            max-width: 1000px;
+            margin: 0 auto;
         }}
         .header {{
-            display: flex; justify-content: space-between; align-items: center;
-            border-bottom: 3px solid #3b82f6; padding-bottom: 20px; margin-bottom: 30px;
+            display: flex; 
+            justify-content: space-between; 
+            align-items: flex-start;
+            margin-bottom: 50px;
+            padding-bottom: 30px;
+            border-bottom: 1px solid #f1f5f9;
         }}
-        .header h1 {{ font-size: 28px; color: #0f172a; }}
-        .header h1 span {{ color: #3b82f6; font-weight: 400; }}
-        .header .date {{ color: #64748b; font-size: 14px; }}
-        .section {{ margin-bottom: 35px; }}
-        .section h2 {{
-            font-size: 18px; color: #0f172a; margin-bottom: 16px;
-            padding-left: 12px; border-left: 4px solid #3b82f6;
+        .brand {{
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }}
+        .brand img {{
+            height: 36px;
+            width: auto;
+        }}
+        .brand h1 {{
+            font-size: 26px;
+            font-weight: 800;
+            color: #0f172a;
+            letter-spacing: -1px;
+        }}
+        .brand h1 span {{
+            color: #6366f1;
+        }}
+        .header .report-meta {{
+            text-align: right;
+        }}
+        .report-meta h2 {{
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: #64748b;
+            margin-bottom: 4px;
+            font-weight: 700;
+        }}
+        .report-meta .date {{
+            color: #0f172a;
+            font-size: 14px;
+            font-weight: 600;
+        }}
+        .section {{ margin-bottom: 50px; }}
+        .section h3 {{
+            font-size: 14px; 
+            color: #475569; 
+            margin-bottom: 20px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }}
+        .section h3::after {{
+            content: "";
+            flex: 1;
+            height: 1px;
+            background: #f1f5f9;
         }}
         table {{
-            width: 100%; border-collapse: collapse; font-size: 14px;
-            border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;
+            width: 100%; 
+            border-collapse: collapse; 
+            font-size: 13px;
+            border: 1px solid #f1f5f9;
+            border-radius: 12px;
+            overflow: hidden;
         }}
         thead th {{
-            background: #f8fafc; color: #475569; font-weight: 600; font-size: 12px;
-            text-transform: uppercase; letter-spacing: 0.5px;
-            padding: 12px 16px; border-bottom: 2px solid #e2e8f0; text-align: left;
+            background: #0f172a; 
+            color: #fff; 
+            font-weight: 600; 
+            font-size: 11px;
+            text-transform: uppercase; 
+            letter-spacing: 1px;
+            padding: 16px; 
+            text-align: left;
+        }}
+        tbody tr:nth-child(even) {{
+            background: #f8fafc;
+        }}
+        tbody td {{
+            padding: 16px;
+            border-bottom: 1px solid #f1f5f9;
+            vertical-align: middle;
+        }}
+        .badge {{
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 10px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }}
         .footer {{
-            margin-top: 50px; padding-top: 20px; border-top: 1px solid #e2e8f0;
-            text-align: center; color: #94a3b8; font-size: 12px;
+            margin-top: 80px; 
+            padding-top: 30px; 
+            border-top: 1px solid #f1f5f9;
+            text-align: center; 
+            color: #94a3b8; 
+            font-size: 11px;
+            font-weight: 500;
+            letter-spacing: 0.5px;
         }}
         .print-btn {{
-            display: inline-flex; align-items: center; gap: 8px;
-            background: #3b82f6; color: #fff; border: none; padding: 12px 28px;
-            border-radius: 8px; font-size: 14px; font-weight: 600;
-            cursor: pointer; margin-bottom: 30px; transition: background 0.2s;
+            position: fixed;
+            bottom: 40px;
+            right: 40px;
+            background: #0f172a; 
+            color: #fff; 
+            border: none; 
+            padding: 16px 30px;
+            border-radius: 50px; 
+            font-size: 14px; 
+            font-weight: 700;
+            cursor: pointer; 
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+            transition: all 0.2s;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border: 1px solid rgba(255,255,255,0.1);
         }}
-        .print-btn:hover {{ background: #2563eb; }}
+        .print-btn:hover {{ transform: translateY(-3px); background: #1e293b; box-shadow: 0 25px 50px rgba(0,0,0,0.4); }}
         @media print {{
-            .print-btn {{ display: none; }}
-            body {{ padding: 20px; }}
+            .no-print {{ display: none !important; }}
+            body {{ padding: 0; }}
+            .container {{ padding: 0; width: 100%; max-width: none; }}
+            .top-border {{ height: 12px; }}
+            @page {{ margin: 1.5cm; }}
         }}
     </style>
 </head>
 <body>
-    <button class="print-btn" onclick="window.print()">
-        &#128424; Print / Save as PDF
+    <div class="top-border"></div>
+    <button class="print-btn no-print" onclick="window.print()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7"></path><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+        Export PDF
     </button>
 
-    <div class="header">
-        <h1>Predicto<span>Hub</span> Executive Report</h1>
-        <div class="date">Generated: {time.strftime('%B %d, %Y at %H:%M')}</div>
-    </div>
+    <div class="container">
+        <div class="header">
+            <div class="brand">
+                <img src="http://localhost:5173/predicto-logo.png" alt="" onerror="this.style.display='none'">
+                <h1>Predicto<span>Hub</span></h1>
+            </div>
+            <div class="report-meta">
+                <h2>Executive Intelligence Report</h2>
+                <div class="date">{time.strftime('%B %d, %Y')}</div>
+            </div>
+        </div>
 
-    <div class="section">
-        <h2>Revenue Forecast (Next 3 Periods)</h2>
-        <table>
-            <thead>
-                <tr>
-                    <th>Segment</th>
-                    <th style="text-align:right;">Predicted Revenue</th>
-                    <th style="text-align:right;">Change</th>
-                    <th style="text-align:center;">Trend</th>
-                </tr>
-            </thead>
-            <tbody>{forecast_rows}</tbody>
-        </table>
-    </div>
+        <div class="section">
+            <h3>Revenue Forecast Analysis</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Segment</th>
+                        <th style="text-align:right;">Projected Revenue</th>
+                        <th style="text-align:right;">Growth</th>
+                        <th style="text-align:center;">Trend Confidence</th>
+                    </tr>
+                </thead>
+                <tbody>{forecast_rows}</tbody>
+            </table>
+        </div>
 
-    <div class="section">
-        <h2>Persona & Cluster Analysis</h2>
-        <table>
-            <thead>
-                <tr>
-                    <th>Persona</th>
-                    <th>Segment</th>
-                    <th style="text-align:right;">Avg Deal Value</th>
-                    <th style="text-align:right;">Avg Margin</th>
-                    <th style="text-align:center;">Churn Risk</th>
-                    <th>Top Region</th>
-                </tr>
-            </thead>
-            <tbody>{persona_rows}</tbody>
-        </table>
-    </div>
+        <div class="section">
+            <h3>Persona Clustering & Risk</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Behavioral Persona</th>
+                        <th>Segment</th>
+                        <th style="text-align:right;">Avg Deal</th>
+                        <th style="text-align:right;">Avg Margin</th>
+                        <th style="text-align:center;">Churn Risk</th>
+                        <th>Core Region</th>
+                    </tr>
+                </thead>
+                <tbody>{persona_rows}</tbody>
+            </table>
+        </div>
 
-    <div class="footer">
-        Generated autonomously by Predicto ML Pipeline &bull; {len(forecast_inputs)} segments &bull; {seg_input.n_clusters} clusters
+        <div class="footer">
+            CONFIDENTIAL &bull; Generated by Predicto Intelligence Pipeline &bull; {len(forecast_inputs)} segments analyzed &bull; {seg_input.n_clusters} clusters identified
+        </div>
     </div>
 
     <script>
         // Auto-trigger print dialog after a short delay
-        setTimeout(function() {{ window.print(); }}, 800);
+        setTimeout(function() {{ window.print(); }}, 1200);
     </script>
 </body>
 </html>"""
@@ -754,6 +881,121 @@ async def get_data_preview() -> DataPreviewResponse:
         return DataPreviewResponse(status="no_data", count=0, data=[])
     _require_models_ready()
     return _build_data_preview_response()
+
+@router.get(
+    "/revenue/overview",
+    response_model=RevenueOverviewResponse,
+    summary="Unified revenue, margin, and risk overview for the main dashboard",
+)
+async def get_revenue_overview() -> RevenueOverviewResponse:
+    """
+    Landing page endpoint. Aggregates data from all 3 ML pillars.
+    """
+    if not _ml_and_data_available():
+        # Fallback to empty state if models aren't ready
+        return RevenueOverviewResponse(
+            next_quarter_revenue="$0.0k",
+            revenue_growth="+0%",
+            portfolio_margin_health=0.0,
+            margin_target=25.0,
+            risk_alerts=0,
+            recovery_opportunity="$0.0M",
+            forecast_data=[],
+            sparkline_revenue=[],
+            discount_matrix=[],
+            model_health={"Margin Engine": 0.0, "Forecast Model": 0.0}
+        )
+
+    # ── 1. Pull Context ──────────────────────────────────────────────────
+    forecast_inputs = get_forecast_inputs(periods=3)
+    margin_input = get_margin_input()
+    raw_df = predicto_cache.get_raw_data()
+    monthly_df = predicto_cache.get_monthly_data()
+
+    # ── 2. Top-Level Metrics ─────────────────────────────────────────────
+    total_next_rev = sum(f.yhat_next for f in forecast_inputs)
+    next_rev_str = f"${total_next_rev/1000:.1f}k"
+    
+    # Growth heuristic: mean of % changes across segments
+    # ForecastInput.pct_change is a float (e.g., 0.05 for 5%)
+    avg_growth = sum(f.pct_change * 100 for f in forecast_inputs) / len(forecast_inputs) if forecast_inputs else 0
+    growth_str = f"{avg_growth:+.1f}%"
+
+    margin_health = raw_df["Margin_Rate"].mean() * 100
+    
+    # Risk alerts count (Margin_Rate < 0.05)
+    risk_alerts_count = len(raw_df[raw_df["Margin_Rate"] < 0.05])
+    
+    # Recovery Opportunity heuristic: (Target 20% - Current Mean Margin) * Sales Value
+    # Sourced from deals that are at risk
+    total_at_risk_sales = raw_df[raw_df["Margin_Rate"] < 0.05]["Sales"].sum()
+    recovery_opp = total_at_risk_sales * 0.15 # Assume we can recover 15% margin on at-risk deals
+    recovery_str = f"${recovery_opp/1_000_000:.1f}M"
+
+    # ── 3. Forecast Chart ────────────────────────────────────────────────
+    # Transform monthly_df + forecast_inputs into RevenueForecastPoint
+    forecast_pts: list[RevenueForecastPoint] = []
+    
+    if monthly_df is None or monthly_df.empty:
+        hist_months = []
+    else:
+        # Defensive check: if Month became index, bring it back
+        if "Month" not in monthly_df.columns and monthly_df.index.name == "Month":
+            monthly_df = monthly_df.reset_index()
+        
+        hist_months = sorted(monthly_df["Month"].unique())[-12:]
+    for m in hist_months:
+        m_df = monthly_df[monthly_df["Month"] == m]
+        forecast_pts.append(RevenueForecastPoint(
+            month=m.strftime("%b %y"),
+            Enterprise=float(m_df[m_df["Segment"] == "Enterprise"]["Sales"].sum()),
+            SMB=float(m_df[m_df["Segment"] == "SMB"]["Sales"].sum()),
+            Strategic=float(m_df[m_df["Segment"] == "Strategic"]["Sales"].sum()),
+            isForecast=False
+        ))
+
+    # Future (next 3 periods)
+    for i in range(3):
+        # We simulate a slight monthly roll for the 3-period forecast display
+        # In a real app, you'd call a multi-step forecast service
+        forecast_pts.append(RevenueForecastPoint(
+            month=f"Forecast P{i+1}",
+            Enterprise=float(next((f.yhat_next for f in forecast_inputs if f.segment == "Enterprise"), 0) * (1 + 0.02 * i)),
+            SMB=float(next((f.yhat_next for f in forecast_inputs if f.segment == "SMB"), 0) * (1 + 0.01 * i)),
+            Strategic=float(next((f.yhat_next for f in forecast_inputs if f.segment == "Strategic"), 0) * (1 + 0.03 * i)),
+            isForecast=True
+        ))
+
+    # Sparkline: last 6 months total revenue
+    sparkline = []
+    for m in hist_months[-6:]:
+        sparkline.append({"value": float(monthly_df[monthly_df["Month"] == m]["Sales"].sum())})
+
+    # ── 4. Discount Matrix ───────────────────────────────────────────────
+    matrix_rows = []
+    for seg, regions in margin_input.discount_ceiling_matrix.items():
+        matrix_rows.append(MatrixRow(
+            segment=seg,
+            NA=f"{regions.get('North America', 0.1) * 100:.0f}%",
+            EU=f"{regions.get('Europe', 0.12) * 100:.0f}%",
+            APAC=f"{regions.get('APAC', 0.15) * 100:.0f}%"
+        ))
+
+    return RevenueOverviewResponse(
+        next_quarter_revenue=next_rev_str,
+        revenue_growth=growth_str,
+        portfolio_margin_health=round(margin_health, 1),
+        margin_target=25.0,
+        risk_alerts=risk_alerts_count,
+        recovery_opportunity=recovery_str,
+        forecast_data=forecast_pts,
+        sparkline_revenue=sparkline,
+        discount_matrix=matrix_rows,
+        model_health={
+            "Margin Engine": margin_input.model_r2,
+            "Forecast Model": sum(f.r2_validation for f in forecast_inputs) / len(forecast_inputs)
+        }
+    )
 
 
 @router.get(

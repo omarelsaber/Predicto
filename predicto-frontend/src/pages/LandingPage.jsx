@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -22,23 +23,41 @@ export default function LandingPage({ onLaunch }) {
       }}
       className="relative w-full overflow-hidden"
     >
-      {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-4 bg-slate-950/80 backdrop-blur-xl border-b border-slate-800/40">
-        <img src="/predicto-logo.png" alt="Predicto" className="h-10 w-auto object-contain" />
-        <div className="flex items-center gap-8">
-          <button className="text-sm text-slate-400 hover:text-white cursor-pointer transition-colors">
-            Documentation
-          </button>
-          <motion.button
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={onLaunch}
-            className="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold px-5 py-2 rounded-lg transition-all duration-200"
-          >
-            Launch Workspace →
-          </motion.button>
-        </div>
-      </nav>
+      {/* Video Background Layer */}
+      <video 
+        autoPlay 
+        loop 
+        muted 
+        playsInline 
+        preload="auto"
+        className="absolute inset-0 w-full h-full object-cover z-0 opacity-40"
+      >
+        <source src="/landing-hero-bg.mp4" type="video/mp4" />
+      </video>
+
+      {/* Content Layer */}
+      <div className="relative z-10">
+        {/* Navigation */}
+        <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-4 bg-slate-950/80 backdrop-blur-xl border-b border-slate-800/40">
+          <Link to="/" className="block hover:opacity-80 transition-opacity">
+            <img src="/predicto-logo.png" alt="Predicto" className="h-10 w-auto object-contain" />
+          </Link>
+          <div className="flex items-center gap-8">
+            <button className="text-sm text-slate-400 hover:text-white cursor-pointer transition-colors">
+              Documentation
+            </button>
+            <motion.button
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={onLaunch}
+              className="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold px-5 py-2 rounded-lg transition-all duration-200"
+            >
+              Launch Workspace →
+            </motion.button>
+          </div>
+        </nav>
+
+
 
       {/* SECTION 1: THE HOOK */}
       <section className="min-h-screen flex flex-col justify-center relative overflow-hidden pt-20" style={{ position: 'relative', overflow: 'hidden' }}>
@@ -407,7 +426,9 @@ export default function LandingPage({ onLaunch }) {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-12 mb-16">
           {/* Column 1: Brand */}
           <div>
-            <img src="/predicto-logo.png" alt="Predicto" className="h-8 w-auto object-contain mb-4" />
+            <Link to="/" className="block hover:opacity-80 transition-opacity">
+              <img src="/predicto-logo.png" alt="Predicto" className="h-10 w-auto object-contain mb-4" />
+            </Link>
             <p className="text-sm text-slate-500 leading-relaxed max-w-xs">
               AI-powered revenue intelligence platform. Built for sales leaders who move on data, not instinct.
             </p>
@@ -455,5 +476,6 @@ export default function LandingPage({ onLaunch }) {
         </div>
       </footer>
     </div>
-  );
+  </div>
+);
 }

@@ -1,10 +1,13 @@
-import { BarChart3, TrendingUp, Users, Database, Upload, Globe, User, LogOut } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { BarChart3, TrendingUp, Users, Database, Upload, Globe, User, LogOut, Settings, Bot, PieChart } from 'lucide-react';
 
 export default function PredictoSidebar({ activeTab, setActiveTab, userName }) {
   const navItems = [
     { id: 'landing', label: 'Marketing Site', icon: Globe },
     { id: 'revenue-overview', label: 'Revenue Overview', icon: BarChart3 },
+    { id: 'analytics-hub', label: 'Analytics Hub', icon: PieChart },
     { id: 'deal-scorer', label: 'Deal Scorer', icon: TrendingUp },
+    { id: 'ai-copilot', label: 'AI Copilot', icon: Bot },
     { id: 'personas', label: 'Persona Gallery', icon: Users },
     { id: 'data-explorer', label: 'Data Explorer', icon: Database },
     { id: 'upload', label: 'Upload Data', icon: Upload }
@@ -14,7 +17,9 @@ export default function PredictoSidebar({ activeTab, setActiveTab, userName }) {
     <div className="w-56 bg-slate-900/80 backdrop-blur-xl border-r border-slate-800 flex flex-col h-screen fixed left-0 top-0 z-50">
       {/* Logo */}
       <div className="p-6 border-b border-slate-800/50">
-        <img src="/predicto-logo.png" alt="Predicto" className="h-10 w-auto object-contain" />
+        <Link to="/" onClick={() => setActiveTab('landing')} className="block hover:opacity-80 transition-opacity">
+          <img src="/predicto-logo.png" alt="Predicto" className="h-10 w-auto object-contain" />
+        </Link>
       </div>
 
       {/* Navigation */}
@@ -51,7 +56,10 @@ export default function PredictoSidebar({ activeTab, setActiveTab, userName }) {
               <span className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">Enterprise Admin</span>
             </div>
           </div>
-          <LogOut size={16} className="text-slate-500 hover:text-rose-400 transition-colors" />
+          <div className="flex items-center gap-2">
+            <Settings size={16} className="text-slate-500 hover:text-indigo-400 transition-colors cursor-pointer" />
+            <LogOut size={16} className="text-slate-500 hover:text-rose-400 transition-colors cursor-pointer" />
+          </div>
         </div>
       </div>
     </div>

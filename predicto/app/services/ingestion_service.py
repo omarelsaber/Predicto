@@ -1008,12 +1008,12 @@ def _build_monthly_df(raw_df: pd.DataFrame) -> pd.DataFrame:
     -------
     pd.DataFrame
         Monthly summary with columns:
-        ``period``, ``Segment``, ``Sales``, ``Profit``, ``Margin_Rate``.
+        ``Month``, ``Segment``, ``Sales``, ``Profit``, ``Margin_Rate``.
     """
     df = raw_df.copy()
 
     # Create month period key
-    df["period"] = df[_DATE_COLUMN].dt.to_period("M")
+    df["Month"] = df[_DATE_COLUMN].dt.to_period("M")
 
     agg_cols: dict[str, str | pd.NamedAgg] = {
         _SALES_COLUMN: "sum",
@@ -1021,7 +1021,7 @@ def _build_monthly_df(raw_df: pd.DataFrame) -> pd.DataFrame:
         "Margin_Rate": "mean",
     }
 
-    group_keys = ["period", _SEGMENT_COLUMN]
+    group_keys = ["Month", _SEGMENT_COLUMN]
 
     monthly = (
         df.groupby(group_keys, observed=True)
@@ -1029,17 +1029,17 @@ def _build_monthly_df(raw_df: pd.DataFrame) -> pd.DataFrame:
         .reset_index()
     )
 
-    # Ensure period is Period[M] dtype (survives groupby in older pandas versions)
-    if not hasattr(monthly["period"].dtype, "freq"):
-        monthly["period"] = monthly["period"].dt.to_period("M")
+    # Ensure Month is Period[M] dtype (survives groupby in older pandas versions)
+    if not hasattr(monthly["Month"].dtype, "freq"):
+        monthly["Month"] = monthly["Month"].dt.to_period("M")
 
-    monthly = monthly.sort_values(["period", _SEGMENT_COLUMN]).reset_index(drop=True)
+    monthly = monthly.sort_values(["Month", _SEGMENT_COLUMN]).reset_index(drop=True)
 
     logger.debug(
         "Monthly DataFrame — %d rows, date range: %s → %s",
         len(monthly),
-        monthly["period"].min(),
-        monthly["period"].max(),
+        monthly["Month"].min(),
+        monthly["Month"].max(),
     )
 
     return monthly

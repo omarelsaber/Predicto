@@ -55,7 +55,9 @@ __all__ = [
     "SegmentationInput",
     "DealRisk",
     "PersonaTrait",
+    "PersonaTrait",
     "stream_executive_summary",
+    "get_executive_summary_sync",
     "build_system_prompt",
     "SynthesisError",
 ]
@@ -260,31 +262,35 @@ async def stream_executive_summary(
             segmentation=segmentation,
             max_at_risk_deals=max_at_risk_deals,
         )
-    except ValueError as exc:
-        logger.error("context_builder raised ValueError: %s", exc)
-        yield _error_event(str(exc), code="EMPTY_CONTEXT")
-        yield _done_event()
-        return
+        # ── Step 2: Log pruning decisions at DEBUG ────────────────────────────
+        for entry in packet.pruning_log:
+            logger.debug("[context_builder] %s", entry)
 
-    # ── Step 2: Log pruning decisions at DEBUG ────────────────────────────
-    for entry in packet.pruning_log:
-        logger.debug("[context_builder] %s", entry)
+        logger.info(
+            "Context packet built | tokens=%d | budget=%.1f%%",
+            packet.token_estimate,
+            packet.budget_used_pct,
+        )
 
-    logger.info(
-        "Context packet built | tokens=%d | budget=%.1f%%",
-        packet.token_estimate,
-        packet.budget_used_pct,
-    )
+        # ── Step 3: Emit meta event immediately (frontend can show spinner) ───
+        yield _meta_event(
+            token_estimate=packet.token_estimate,
+            budget_pct=packet.budget_used_pct,
+            pruning_log=packet.pruning_log,
+        )
 
-    # ── Step 3: Emit meta event immediately (frontend can show spinner) ───
-    yield _meta_event(
-        token_estimate=packet.token_estimate,
-        budget_pct=packet.budget_used_pct,
-        pruning_log=packet.pruning_log,
-    )
+        # ── Step 4: Format system prompt (Arabic analyst framing + pillar JSON summaries)
+        system_prompt = _system_prompt_from_packet(packet)
 
-    # ── Step 4: Format system prompt (Arabic analyst framing + pillar JSON summaries)
-    system_prompt = _system_prompt_from_packet(packet)
+    except ValueError:
+        logger.info("Context empty or conversational query detected; using natural language fallback.")
+        # Step 3 (Fallback): Emit meta event for consistency
+        yield _meta_event(
+            token_estimate=0,
+            budget_pct=0.0,
+            pruning_log=["Analytical context unavailable - switching to conversational mode."]
+        )
+        system_prompt = "You are Predicto AI. The user hasn't uploaded their revenue data yet. Chat with them normally, introduce yourself, and politely ask them to upload their CSV in the 'Upload Data' page to begin analysis."
 
     # ── Step 5: Stream Groq completion ───────────────────────────────────
     try:
@@ -349,3 +355,49 @@ async def stream_executive_summary(
     finally:
         # Invariant: `done` is always the last event.
         yield _done_event()
+
+async def get_executive_summary_sync(
+    user_query: str,
+    forecasts: list[ForecastInput],
+    margin: MarginInput,
+    segmentation: SegmentationInput,
+    *,
+    temperature: float = 0.4,
+    max_tokens: int = 512,
+) -> str:
+    """
+    Non-streaming version of the executive summary.
+    Returns the full textual response as a single string.
+    """
+    settings = get_settings()
+    groq = _get_groq_client()
+
+    # Reuse the same context building logic
+    try:
+        packet = build_context(
+            forecasts=forecasts,
+            margin=margin,
+            segmentation=segmentation,
+            max_at_risk_deals=5,
+        )
+        system_prompt = _system_prompt_from_packet(packet)
+    except ValueError:
+        system_prompt = "You are Predicto AI. The user hasn't uploaded their revenue data yet. Chat with them normally, introduce yourself, and politely ask them to upload their CSV in the 'Upload Data' page to begin analysis."
+
+    try:
+        completion = await groq.chat.completions.create(
+            model=settings.groq_model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user",   "content": user_query},
+            ],
+            stream=False,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+        
+        return completion.choices[0].message.content or ""
+        
+    except Exception as exc:
+        logger.error("Groq non-streaming request failed: %s", exc, exc_info=True)
+        raise SynthesisError(f"Synthesis failed: {str(exc)}") from exc

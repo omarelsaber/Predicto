@@ -115,7 +115,17 @@ export default function UploadPage({ onUploadComplete }) {
   const currentStageIndex = stages.findIndex(s => s.key === stage);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 relative bg-transparent">
+      <video 
+        autoPlay 
+        loop 
+        muted 
+        playsInline 
+        className="fixed inset-0 w-full h-full object-cover -z-20"
+        src="/upload-bg-2.mp4"
+      />
+      <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-[3px] -z-10"></div>
+
       <header className="mb-8">
         <h2 className="text-3xl font-bold text-white tracking-tight mb-2 flex items-center gap-3">
           <Sparkles className="text-brand-primary" size={28} />
@@ -138,7 +148,7 @@ export default function UploadPage({ onUploadComplete }) {
               relative border-2 border-dashed rounded-2xl p-12 text-center transition-all duration-300 cursor-pointer backdrop-blur-2xl
               ${isDragging
                 ? 'border-brand-primary bg-brand-primary/10 shadow-[0_0_40px_rgba(59,130,246,0.15)]'
-                : 'border-white/5 bg-slate-900/30 hover:border-white/10 hover:bg-slate-900/40 shadow-2xl'
+                : 'border-white/5 bg-transparent backdrop-blur-xl border border-white/10 hover:border-white/20 hover:bg-white/5 shadow-2xl'
               }
               ${file ? 'border-emerald-500/30 bg-emerald-500/10' : ''}
             `}
@@ -230,7 +240,7 @@ export default function UploadPage({ onUploadComplete }) {
 
         {/* Progress / Status Panel */}
         <div className="xl:col-span-2">
-          <div className="bg-slate-950/40 backdrop-blur-2xl border border-white/5 rounded-2xl p-8 shadow-[0_30px_60px_rgba(0,0,0,0.4)] h-full flex flex-col">
+          <div className="bg-transparent backdrop-blur-2xl border border-white/10 rounded-2xl p-8 shadow-[0_30px_60px_rgba(0,0,0,0.4)] h-full flex flex-col">
             <h3 className="text-lg font-semibold text-white mb-6 flex items-center gap-2">
               <span className="w-1.5 h-5 bg-brand-accent rounded-full inline-block"></span>
               Training Pipeline

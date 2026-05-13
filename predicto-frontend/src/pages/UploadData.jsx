@@ -8,7 +8,17 @@ export default function UploadData() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 relative bg-transparent">
+      <video 
+        autoPlay 
+        loop 
+        muted 
+        playsInline 
+        className="fixed inset-0 w-full h-full object-cover -z-20 pointer-events-none"
+      >
+        <source src="/upload-bg-2.mp4" type="video/mp4" />
+      </video>
+      <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-[3px] -z-10"></div>
       {/* Header */}
       <div>
         <h2 className="text-2xl font-black text-white">Upload Data</h2>

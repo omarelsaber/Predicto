@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   LineChart,
@@ -18,8 +18,8 @@ import {
   Tooltip,
   Legend,
 } from 'recharts';
-import { Calendar, Download } from 'lucide-react';
-import { mockForecastData, mockSegmentData, mockRadarData, mockAnalyticsMetrics } from '../data/mockAnalyticsData';
+import { Calendar, Download, Loader2 } from 'lucide-react';
+import api from '../api';
 
 const ChartCard = ({ title, children, className = '' }) => (
   <motion.div
@@ -27,7 +27,7 @@ const ChartCard = ({ title, children, className = '' }) => (
     whileInView={{ opacity: 1, y: 0 }}
     viewport={{ once: true, amount: 0.3 }}
     transition={{ duration: 0.5 }}
-    className={`bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-[0_0_15px_rgba(99,102,241,0.1)] hover:border-slate-700 hover:shadow-[0_0_20px_rgba(99,102,241,0.15)] transition-all ${className}`}
+    className={`bg-transparent backdrop-blur-xl border border-white/10 rounded-xl p-6 shadow-[0_0_15px_rgba(99,102,241,0.1)] hover:border-slate-700 hover:shadow-[0_0_20px_rgba(99,102,241,0.15)] transition-all ${className}`}
   >
     <h3 className="text-lg font-bold text-white mb-6">{title}</h3>
     {children}
@@ -40,7 +40,7 @@ const MetricCard = ({ label, value, change, color }) => (
     whileInView={{ opacity: 1, scale: 1 }}
     viewport={{ once: true }}
     transition={{ duration: 0.4 }}
-    className="bg-slate-800/40 border border-slate-700/50 rounded-lg p-4"
+    className="bg-transparent backdrop-blur-xl border border-white/5 rounded-lg p-4"
   >
     <p className="text-sm text-slate-400 mb-1">{label}</p>
     <p className={`text-2xl font-bold ${color}`}>{value}</p>
@@ -50,10 +50,86 @@ const MetricCard = ({ label, value, change, color }) => (
 
 export default function AnalyticsHub() {
   const [timeRange, setTimeRange] = useState('12m');
-  const [selectedSegment, setSelectedSegment] = useState('all');
+  const [revenueData, setRevenueData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        const res = await api.get('/revenue/overview');
+        setRevenueData(res.data);
+      } catch (err) {
+        console.error('Failed to fetch analytics data:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchData();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="h-[60vh] flex flex-col items-center justify-center text-slate-400">
+        <Loader2 className="w-10 h-10 animate-spin text-indigo-500 mb-4" />
+        <p className="text-lg font-medium">Processing analytical engine...</p>
+      </div>
+    );
+  }
+
+  // Map backend data to UI
+  const rawForecastData = revenueData?.forecast_data || [];
+  
+  // Filtering logic for the main chart
+  const getFilteredForecast = () => {
+    if (!rawForecastData.length) return [];
+    
+    // Split into history and forecast
+    const history = rawForecastData.filter(d => !d.isForecast);
+    const forecast = rawForecastData.filter(d => d.isForecast);
+    
+    let slicedHistory = history;
+    if (timeRange === '3m') slicedHistory = history.slice(-3);
+    else if (timeRange === '6m') slicedHistory = history.slice(-6);
+    else if (timeRange === '12m') slicedHistory = history.slice(-12);
+    else if (timeRange === 'YTD') {
+      const currentYear = new Date().getFullYear();
+      slicedHistory = history.filter(d => d.month.includes(currentYear.toString().slice(-2)));
+    }
+    
+    return [...slicedHistory, ...forecast];
+  };
+
+  const forecastData = getFilteredForecast();
+  
+  const segmentData = revenueData?.segment_distribution || [
+    { name: 'Mid-Market', value: 45, color: '#6366f1' },
+    { name: 'Enterprise', value: 35, color: '#a855f7' },
+    { name: 'Small Business', value: 20, color: '#ec4899' }
+  ];
+  
+  const radarData = revenueData?.persona_metrics || [];
+  
+  const metrics = {
+    totalRevenue: revenueData?.next_quarter_revenue || "$0.0k",
+    revenueGrowth: revenueData?.revenue_growth || "+0%",
+    avgDealSize: revenueData?.avg_deal_size || "$0k",
+    conversionRate: revenueData?.conversion_rate || "0%",
+    accountHealth: `${revenueData?.portfolio_margin_health || 0}%`
+  };
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-b from-slate-950 to-slate-900 px-6 py-8">
+    <div className="min-h-screen w-full bg-transparent px-6 py-8 relative">
+      <video 
+        autoPlay 
+        loop 
+        muted 
+        playsInline 
+        className="fixed inset-0 w-full h-full object-cover -z-20"
+        src="/analytics-bg.mp4"
+      />
+
+      <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-[3px] -z-10"></div>
+
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
@@ -80,7 +156,7 @@ export default function AnalyticsHub() {
               className={`px-4 py-2 rounded-lg font-medium transition-all ${
                 timeRange === range
                   ? 'bg-indigo-500 text-white shadow-[0_0_15px_rgba(99,102,241,0.5)]'
-                  : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                  : 'bg-white/5 backdrop-blur-md text-slate-300 hover:bg-white/10 border border-white/5'
               }`}
             >
               {range}
@@ -88,7 +164,7 @@ export default function AnalyticsHub() {
           ))}
         </div>
 
-        <button className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-slate-300 rounded-lg hover:bg-slate-700 transition-all">
+        <button className="flex items-center gap-2 px-4 py-2 bg-white/5 backdrop-blur-md text-slate-300 rounded-lg hover:bg-white/10 border border-white/5 transition-all">
           <Download size={18} />
           Export
         </button>
@@ -101,19 +177,19 @@ export default function AnalyticsHub() {
         transition={{ duration: 0.5, delay: 0.2 }}
         className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-12"
       >
-        <MetricCard label="Total Revenue" value={mockAnalyticsMetrics.totalRevenue} change={mockAnalyticsMetrics.revenueGrowth} color="text-indigo-400" />
-        <MetricCard label="Avg Deal Size" value={mockAnalyticsMetrics.avgDealSize} change="+12.5%" color="text-purple-400" />
-        <MetricCard label="Conversion Rate" value={mockAnalyticsMetrics.conversionRate} color="text-pink-400" />
-        <MetricCard label="Account Health" value={mockAnalyticsMetrics.accountHealth} color="text-emerald-400" />
+        <MetricCard label="Next Quarter Revenue" value={metrics.totalRevenue} change={metrics.revenueGrowth} color="text-indigo-400" />
+        <MetricCard label="Avg Deal Size" value={metrics.avgDealSize} change="+12.5%" color="text-purple-400" />
+        <MetricCard label="Conversion Rate" value={metrics.conversionRate} color="text-pink-400" />
+        <MetricCard label="Portfolio Margin" value={metrics.accountHealth} color="text-emerald-400" />
       </motion.div>
 
       {/* Charts Grid */}
       <div className="space-y-8 max-w-7xl mx-auto">
         {/* Forecast Chart - Full Width */}
-        <ChartCard title="12-Month Revenue Forecast by Segment" className="lg:col-span-2">
-          <div className="h-96 -mx-6 -mb-6">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={mockForecastData} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
+        <ChartCard title="Revenue Forecast by Segment" className="lg:col-span-2">
+          <div className="w-full h-96 relative">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+              <LineChart data={forecastData} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
                 <defs>
                   <linearGradient id="colorEnterprise" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
@@ -129,19 +205,19 @@ export default function AnalyticsHub() {
                 <YAxis stroke="#64748b" fontSize={12} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: '#0f172a',
-                    borderColor: '#475569',
-                    borderRadius: '8px',
+                    backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                    backdropFilter: 'blur(12px)',
+                    borderColor: 'rgba(255, 255, 255, 0.1)',
+                    borderRadius: '12px',
                     color: '#e2e8f0',
                   }}
                   formatter={(value) => [`$${value.toLocaleString()}`, '']}
                   cursor={{ stroke: '#475569' }}
                 />
                 <Legend wrapperStyle={{ color: '#cbd5e1' }} />
-                <Line type="monotone" dataKey="enterprise" stroke="#6366f1" strokeWidth={2.5} dot={false} isAnimationActive={true} />
-                <Line type="monotone" dataKey="midmarket" stroke="#a855f7" strokeWidth={2.5} dot={false} isAnimationActive={true} />
-                <Line type="monotone" dataKey="smb" stroke="#ec4899" strokeWidth={2.5} dot={false} isAnimationActive={true} />
-                <Line type="monotone" dataKey="growth" stroke="#f59e0b" strokeWidth={2} dot={false} isAnimationActive={true} strokeDasharray="5 5" />
+                <Line type="monotone" dataKey="Enterprise" stroke="#6366f1" strokeWidth={2.5} dot={false} isAnimationActive={true} />
+                <Line type="monotone" dataKey="SMB" stroke="#a855f7" strokeWidth={2.5} dot={false} isAnimationActive={true} />
+                <Line type="monotone" dataKey="Strategic" stroke="#ec4899" strokeWidth={2.5} dot={false} isAnimationActive={true} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -151,11 +227,11 @@ export default function AnalyticsHub() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Segment Distribution */}
           <ChartCard title="Segment Revenue Distribution">
-            <div className="h-80 -mx-6 -mb-6">
-              <ResponsiveContainer width="100%" height="100%">
+            <div className="w-full h-80 relative">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                 <PieChart>
                   <Pie
-                    data={mockSegmentData}
+                    data={segmentData}
                     cx="50%"
                     cy="50%"
                     innerRadius={60}
@@ -164,8 +240,8 @@ export default function AnalyticsHub() {
                     dataKey="value"
                     isAnimationActive={true}
                   >
-                    {mockSegmentData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    {segmentData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color || (index === 0 ? '#6366f1' : index === 1 ? '#a855f7' : '#ec4899')} />
                     ))}
                   </Pie>
                   <Tooltip
@@ -185,9 +261,9 @@ export default function AnalyticsHub() {
 
           {/* Persona Radar */}
           <ChartCard title="Persona Comparison">
-            <div className="h-80 -mx-6 -mb-6">
-              <ResponsiveContainer width="100%" height="100%">
-                <RadarChart data={mockRadarData}>
+            <div className="w-full h-80 relative">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                <RadarChart data={radarData}>
                   <PolarGrid strokeDasharray="3 3" stroke="#334155" />
                   <PolarAngleAxis dataKey="metric" stroke="#64748b" fontSize={12} />
                   <PolarRadiusAxis angle={90} domain={[0, 100]} stroke="#64748b" fontSize={12} />

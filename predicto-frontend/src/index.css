@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+::-webkit-scrollbar { display: none; }
+* { -ms-overflow-style: none; scrollbar-width: none; }
+
 @theme {
   --color-brand-dark: #0f172a;
   --color-brand-primary: #3b82f6;

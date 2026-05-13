@@ -109,7 +109,17 @@ export default function DataExplorer() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 relative bg-transparent">
+      <video 
+        autoPlay 
+        loop 
+        muted 
+        playsInline 
+        className="fixed inset-0 w-full h-full object-cover -z-10 opacity-20 pointer-events-none"
+      >
+        <source src="/explorer-bg.mp4" type="video/mp4" />
+      </video>
+
       {/* Header */}
       <div>
         <h2 className="text-2xl font-black text-white">Data Explorer</h2>
@@ -117,7 +127,7 @@ export default function DataExplorer() {
       </div>
 
       {/* Filters */}
-      <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-800/50 rounded-xl p-5 flex gap-4 items-end shadow-2xl">
+      <div className="bg-slate-900/40 backdrop-blur-xl border border-white/10 rounded-xl p-5 flex gap-4 items-end shadow-2xl">
         <div className="flex-1">
           <label className="block text-xs text-slate-400 font-medium mb-2">Search</label>
           <div className="relative">
@@ -154,7 +164,7 @@ export default function DataExplorer() {
       </div>
 
       {/* Table */}
-      <div className="bg-slate-900/30 backdrop-blur-xl border border-slate-800/50 rounded-xl overflow-hidden shadow-2xl">
+      <div className="bg-slate-900/30 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden shadow-2xl">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
