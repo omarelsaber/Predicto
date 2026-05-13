@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Sparkles, Loader2, TrendingUp, Target, AlertTriangle, Users, User, DollarSign, MapPin, Layers } from 'lucide-react';
 import EmptyDataPlaceholder from './EmptyDataPlaceholder';
 
+import { API_ORIGIN } from '../api';
+
 export default function PersonaGallery({ personas, isDataLoaded = true, onRequestUpload }) {
   const [selectedPersona, setSelectedPersona] = useState(null);
   const [strategy, setStrategy] = useState('');
@@ -52,7 +54,7 @@ export default function PersonaGallery({ personas, isDataLoaded = true, onReques
     setStrategyError(null);
 
     try {
-      const response = await fetch('http://localhost:8001/api/v1/synthesise', {
+      const response = await fetch(`${API_ORIGIN}/api/v1/synthesise`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

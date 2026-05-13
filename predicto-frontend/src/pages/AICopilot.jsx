@@ -1,7 +1,7 @@
-import axios from 'axios';
 import { useRef, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Send, Loader2, Lightbulb } from 'lucide-react';
+import api from '../api';
 import { mockAIResponses } from '../data/mockAIResponses';
 
 const ChatMessage = ({ message, isUser, isTyping }) => {
@@ -87,7 +87,7 @@ export default function AICopilot() {
 
     try {
       // Connect to real backend - ensuring endpoint matches backend router
-      const response = await axios.post('http://localhost:8001/api/v1/ai/analyze', {
+      const response = await api.post('/ai/analyze', {
         query: userMessage
       });
 
