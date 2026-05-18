@@ -1,1 +1,1 @@
-﻿// TODO: Code will be pasted manually
+/// <reference types="vite/client" />
