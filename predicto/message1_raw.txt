@@ -1,0 +1,29 @@
+<USER_REQUEST>
+ole: Expert Python/FastAPI Developer.
+
+Context:
+As requested, here is Message 1 of 3 containing the full, un-truncated source code for the first part of the V3 God-Tier integration.
+
+Your Task for Message 1:
+
+Step 1: Append the provided Pydantic models and enums to the bottom of app/models/response_models.py. Ensure you don't duplicate core imports.
+
+Step 3 (Part A): Create the file app/services/genome_service.py and paste the full Genome Sequencer pipeline code into it. Fix its models import to read from app.models.response_models instead of app.models.response_models_v3_bundle1.
+
+Here is the source code for Chunk 1:
+
+======= app/models/response_models_v3_bundle1.py additions =======
+
+Python
+from __future__ import annotations
+
+from enum import Enum
+from typing import Dict, List, Optional
+
+from pydantic import BaseModel, Field
+
+# Re-export shared enums so callers need only one import
+from app.models.response_models import FeatureAvailability, ConfidenceLevel  # noqa: F401
+
+
+<truncated 37500 bytes>

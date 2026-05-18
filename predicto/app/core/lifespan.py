@@ -109,8 +109,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:   # noqa: ARG001
     # ─────────────────────────────────────────────────────────────────────
     t0 = time.perf_counter()
     try:
-        logger.info("[1/4] Ingesting CSV: %s", settings.default_csv_path)
-        await to_thread(ingest, settings.default_csv_path)
+        # logger.info("[1/4] Ingesting CSV: %s", settings.default_csv_path)
+        # await to_thread(ingest, settings.default_csv_path)
+        pass
     except Exception as exc:
         logger.critical(
             "STARTUP FAILED at ingestion — %s: %s",
@@ -133,71 +134,72 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:   # noqa: ARG001
     # ─────────────────────────────────────────────────────────────────────
     # Step 2 — Pillar 1: Fourier + Ridge Forecasting
     # ─────────────────────────────────────────────────────────────────────
-    t0 = time.perf_counter()
-    try:
-        logger.info("[2/4] Training Pillar 1 — Fourier+Ridge Forecasting …")
-        forecast_models = await to_thread(train_forecast_models)
-    except Exception as exc:
-        logger.critical(
-            "STARTUP FAILED at Pillar 1 (Forecasting) — %s: %s",
-            type(exc).__name__,
-            exc,
-            exc_info=True,
-        )
-        raise RuntimeError(
-            f"Predicto cannot start: Forecasting training failed — {exc}"
-        ) from exc
-
-    _log_pillar("Pillar 1 — Forecasting", time.perf_counter() - t0)
+    # t0 = time.perf_counter()
+    # try:
+    #     logger.info("[2/4] Training Pillar 1 — Fourier+Ridge Forecasting …")
+    #     forecast_models = await to_thread(train_forecast_models)
+    # except Exception as exc:
+    #     logger.critical(
+    #         "STARTUP FAILED at Pillar 1 (Forecasting) — %s: %s",
+    #         type(exc).__name__,
+    #         exc,
+    #         exc_info=True,
+    #     )
+    #     raise RuntimeError(
+    #         f"Predicto cannot start: Forecasting training failed — {exc}"
+    #     ) from exc
+    # _log_pillar("Pillar 1 — Forecasting", time.perf_counter() - t0)
+    pass
 
     # ─────────────────────────────────────────────────────────────────────
     # Step 3 — Pillar 2: XGBoost / GBR Margin Engine
     # ─────────────────────────────────────────────────────────────────────
-    t0 = time.perf_counter()
-    try:
-        logger.info("[3/4] Training Pillar 2 — Margin Engine …")
-        margin_models = await to_thread(train_margin_engine)
-    except Exception as exc:
-        logger.critical(
-            "STARTUP FAILED at Pillar 2 (MarginEngine) — %s: %s",
-            type(exc).__name__,
-            exc,
-            exc_info=True,
-        )
-        raise RuntimeError(
-            f"Predicto cannot start: Margin engine training failed — {exc}"
-        ) from exc
-
-    _log_pillar("Pillar 2 — Margin Engine", time.perf_counter() - t0)
+    # t0 = time.perf_counter()
+    # try:
+    #     logger.info("[3/4] Training Pillar 2 — Margin Engine …")
+    #     margin_models = await to_thread(train_margin_engine)
+    # except Exception as exc:
+    #     logger.critical(
+    #         "STARTUP FAILED at Pillar 2 (MarginEngine) — %s: %s",
+    #         type(exc).__name__,
+    #         exc,
+    #         exc_info=True,
+    #     )
+    #     raise RuntimeError(
+    #         f"Predicto cannot start: Margin engine training failed — {exc}"
+    #     ) from exc
+    # _log_pillar("Pillar 2 — Margin Engine", time.perf_counter() - t0)
+    pass
 
     # ─────────────────────────────────────────────────────────────────────
     # Step 4 — Pillar 3: K-Means Segmentation
     # ─────────────────────────────────────────────────────────────────────
-    t0 = time.perf_counter()
-    try:
-        logger.info("[4/4] Training Pillar 3 — K-Means Segmentation …")
-        segmentation_result = await to_thread(train_segmentation)
-    except Exception as exc:
-        logger.critical(
-            "STARTUP FAILED at Pillar 3 (Segmentation) — %s: %s",
-            type(exc).__name__,
-            exc,
-            exc_info=True,
-        )
-        raise RuntimeError(
-            f"Predicto cannot start: Segmentation training failed — {exc}"
-        ) from exc
-
-    _log_pillar("Pillar 3 — Segmentation", time.perf_counter() - t0)
+    # t0 = time.perf_counter()
+    # try:
+    #     logger.info("[4/4] Training Pillar 3 — K-Means Segmentation …")
+    #     segmentation_result = await to_thread(train_segmentation)
+    # except Exception as exc:
+    #     logger.critical(
+    #         "STARTUP FAILED at Pillar 3 (Segmentation) — %s: %s",
+    #         type(exc).__name__,
+    #         exc,
+    #         exc_info=True,
+    #     )
+    #     raise RuntimeError(
+    #         f"Predicto cannot start: Segmentation training failed — {exc}"
+    #     ) from exc
+    # _log_pillar("Pillar 3 — Segmentation", time.perf_counter() - t0)
+    pass
 
     # ─────────────────────────────────────────────────────────────────────
     # Step 5 — Atomic model commit to cache
     # ─────────────────────────────────────────────────────────────────────
-    predicto_cache.set_models(
-        forecast=forecast_models,
-        margin=margin_models,
-        segmentation=segmentation_result,
-    )
+    # predicto_cache.set_models(
+    #     forecast=forecast_models,
+    #     margin=margin_models,
+    #     segmentation=segmentation_result,
+    # )
+    pass
 
     total_elapsed = time.perf_counter() - total_start
     logger.info("=" * 60)

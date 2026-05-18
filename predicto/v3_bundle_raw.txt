@@ -1,0 +1,19 @@
+<USER_REQUEST>
+Role: Expert Python/FastAPI Full-Stack Developer & Data Engineer.
+
+Context:
+In my previous message, I provided a consolidated text block containing 6 distinct Python modules separated strictly by divider lines containing equal signs (=======). You previously reported these files were missing due to a truncation glitch; they are now fully present in the history above with the separators. You must parse this consolidated dump and distribute the code to its exact architectural locations.
+
+Your Task:
+Execute the following 6 structural integration steps carefully:
+
+Step 1: Merge the Data Contracts (Response Models)
+
+Locate the block corresponding to response_models_v3_bundle1.py.
+
+Open app/models/response_models.py.
+
+Append all new Enums (GenomeArchetypeLabel, ContagionSeverity, SellerAction, CompetitorAction, ShockScenario, StressTestMode) and all the Request/Response Pydantic models to the absolute bottom of response_models.py. Do not duplicate basic imports.
+
+Step 2: Extend the V2 Cache Dataclass
+<truncated 3143 bytes>

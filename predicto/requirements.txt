@@ -5,6 +5,7 @@ pydantic-settings
 prophet
 xgboost
 scikit-learn
+scipy
 groq
 python-multipart
 python-dotenv

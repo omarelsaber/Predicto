@@ -20,6 +20,9 @@ import time
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
+from dotenv import load_dotenv
+load_dotenv()
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -30,8 +33,16 @@ from app.core.cache import predicto_cache
 from app.core.config import get_settings
 from app.core.lifespan import lifespan as _ml_lifespan
 from app.models.schemas import ErrorResponse, HealthResponse
-
-# ─────────────────────────────────────────────────────────────────────────────
+from app.api.v2 import ingestion as ingestion_v2
+from app.api.v2.intelligence import router as intelligence_router
+from app.api.v2.deals import router as deals_router
+from app.api.v2.churn import router as churn_router
+from app.api.v2.expansion import router as expansion_router
+from app.api.v2.analyst import router as analyst_router
+from app.api.v2.phase5_router import router as phase5_router
+# from app.api.v2.godtier import router as godtier_router
+from app.api.v2.godtier2 import router as godtier2_router
+from app.api.v2.godtier_v3_router1 import router as godtier_v3_router1
 # Logging
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -149,6 +160,16 @@ def create_app() -> FastAPI:
 
     app.include_router(synthesis_router, prefix="/api/v1")
     app.include_router(data_router,      prefix="/api/v1")
+    app.include_router(ingestion_v2.router)
+    app.include_router(intelligence_router)
+    app.include_router(deals_router)
+    app.include_router(churn_router)
+    app.include_router(expansion_router)
+    app.include_router(analyst_router)
+    app.include_router(phase5_router)
+    # app.include_router(godtier_router)
+    app.include_router(godtier2_router)
+    app.include_router(godtier_v3_router1)
 
     logger.info(
         "Routers mounted. CORS origins: %s",
