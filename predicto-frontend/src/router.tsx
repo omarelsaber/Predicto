@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import AppShell from './components/AppShell';
+import IntelligenceHubView from './components/IntelligenceHubView';
 
 // Placeholder components for routes
 const Dashboard = () => (
@@ -22,14 +23,7 @@ const Simulator = () => (
   </div>
 );
 
-const IntelligenceHub = () => (
-  <div className="space-y-6">
-    <h2 className="text-2xl font-bold text-slate-100">Intelligence Hub</h2>
-    <div className="bg-slate-800 p-6 rounded-lg border border-slate-700">
-      <p className="text-slate-300">Intelligence features coming soon</p>
-    </div>
-  </div>
-);
+
 
 const WarRoom = () => (
   <div className="space-y-6">
@@ -83,7 +77,7 @@ export default function Router() {
         <Route element={<AppShell />}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/simulator" element={<Simulator />} />
-          <Route path="/intelligence-hub" element={<IntelligenceHub />} />
+          <Route path="/intelligence-hub" element={<IntelligenceHubView />} />
           <Route path="/war-room" element={<WarRoom />} />
           <Route path="/personas" element={<Personas />} />
           <Route path="/playbooks" element={<Playbooks />} />
