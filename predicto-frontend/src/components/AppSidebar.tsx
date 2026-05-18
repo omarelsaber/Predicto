@@ -12,6 +12,7 @@ import {
   Network,
   AlertTriangle,
   PieChart,
+  Microscope,
 } from 'lucide-react';
 
 interface AppSidebarProps {
@@ -25,13 +26,13 @@ const PRIMARY_ROUTES = [
   { path: '/intelligence-hub', label: 'Intelligence Hub', icon: Brain },
   { path: '/pipeline', label: 'Pipeline', icon: PieChart },
   { path: '/risk-retention', label: 'Risk & Retention', icon: AlertTriangle },
+  { path: '/intelligence-lab', label: 'Intelligence Lab', icon: Microscope },
   { path: '/war-room', label: 'War Room', icon: Target },
   { path: '/personas', label: 'Personas', icon: Users },
   { path: '/playbooks', label: 'Playbooks', icon: TrendingUp },
 ];
 
 const SECONDARY_ROUTES = [
-  { path: '/topology-optimizer', label: 'Topology Optimizer', icon: Network },
   { path: '/settings', label: 'Settings', icon: Settings },
 ];
 

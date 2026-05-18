@@ -3,6 +3,7 @@ import AppShell from './components/AppShell';
 import IntelligenceHubView from './components/IntelligenceHubView';
 import PipelineView from './views/Pipeline/PipelineView';
 import RiskRetentionView from './views/RiskRetention/RiskRetentionView';
+import IntelligenceLabView from './views/IntelligenceLab/IntelligenceLabView';
 
 // Placeholder components for routes
 const Dashboard = () => (
@@ -58,14 +59,7 @@ const Playbooks = () => (
   </div>
 );
 
-const TopologyOptimizer = () => (
-  <div className="space-y-6">
-    <h2 className="text-2xl font-bold text-slate-100">Topology Optimizer</h2>
-    <div className="bg-slate-800 p-6 rounded-lg border border-slate-700">
-      <p className="text-slate-300">Network topology optimization</p>
-    </div>
-  </div>
-);
+const IntelligenceLab = () => <IntelligenceLabView />;
 
 const Settings = () => (
   <div className="space-y-6">
@@ -89,7 +83,7 @@ export default function Router() {
           <Route path="/war-room" element={<WarRoom />} />
           <Route path="/personas" element={<Personas />} />
           <Route path="/playbooks" element={<Playbooks />} />
-          <Route path="/topology-optimizer" element={<TopologyOptimizer />} />
+          <Route path="/intelligence-lab" element={<IntelligenceLab />} />
           <Route path="/settings" element={<Settings />} />
           <Route index element={<Dashboard />} />
         </Route>
