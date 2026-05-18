@@ -13,6 +13,7 @@ import {
   AlertTriangle,
   PieChart,
   Microscope,
+  Database,
 } from 'lucide-react';
 
 interface AppSidebarProps {
@@ -27,6 +28,7 @@ const PRIMARY_ROUTES = [
   { path: '/pipeline', label: 'Pipeline', icon: PieChart },
   { path: '/risk-retention', label: 'Risk & Retention', icon: AlertTriangle },
   { path: '/intelligence-lab', label: 'Intelligence Lab', icon: Microscope },
+  { path: '/data-workspace', label: 'Data Workspace', icon: Database },
   { path: '/war-room', label: 'War Room', icon: Target },
   { path: '/personas', label: 'Personas', icon: Users },
   { path: '/playbooks', label: 'Playbooks', icon: TrendingUp },

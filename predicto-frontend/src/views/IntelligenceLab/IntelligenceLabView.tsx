@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import CausalEngineView from './CausalEngine/CausalEngineView';
 import TopologyOptimizerView from './TopologyOptimizer/TopologyOptimizerView';
+import WarRoomView from './WarRoom/WarRoomView';
 
 export default function IntelligenceLabView() {
-  const [activeTab, setActiveTab] = useState<'causal' | 'topology'>('causal');
+  const [activeTab, setActiveTab] = useState<'causal' | 'topology' | 'warroom'>('causal');
 
   return (
     <div className="space-y-6">
@@ -12,6 +13,7 @@ export default function IntelligenceLabView() {
         {[
           { id: 'causal', label: 'Causal Inference Engine' },
           { id: 'topology', label: 'Topology Optimizer' },
+          { id: 'warroom', label: 'War Room (CFR)' },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -30,6 +32,7 @@ export default function IntelligenceLabView() {
       {/* Tab Content */}
       {activeTab === 'causal' && <CausalEngineView />}
       {activeTab === 'topology' && <TopologyOptimizerView />}
+      {activeTab === 'warroom' && <WarRoomView />}
     </div>
   );
 }
