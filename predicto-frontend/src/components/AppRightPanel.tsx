@@ -1,5 +1,5 @@
-import { X, Send, Loader2 } from 'lucide-react';
-import { useState } from 'react';
+import { X, Send, Loader2, Sparkles } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
 
 interface AppRightPanelProps {
   open: boolean;
@@ -18,12 +18,18 @@ export default function AppRightPanel({ open, onClose }: AppRightPanelProps) {
     {
       id: '1',
       role: 'assistant',
-      content: 'Hello! I\'m your AI Analyst. I can help you analyze revenue trends, identify growth opportunities, and answer questions about your data.',
+      content:
+        "Hello! I'm your AI Analyst. I can help you analyze revenue trends, identify growth opportunities, and answer questions about your data.",
       timestamp: new Date(),
     },
   ]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
   const handleSendMessage = () => {
     if (!inputValue.trim()) return;
@@ -44,7 +50,8 @@ export default function AppRightPanel({ open, onClose }: AppRightPanelProps) {
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: 'I\'m analyzing your request. In a real implementation, this would connect to your AI backend to provide insights.',
+        content:
+          "I'm analyzing your request. In a real implementation, this would connect to your AI backend to provide insights.",
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, aiMessage]);
@@ -54,54 +61,64 @@ export default function AppRightPanel({ open, onClose }: AppRightPanelProps) {
 
   return (
     <>
-      {/* Overlay */}
+      {/* Mobile overlay backdrop */}
       {open && (
         <div
-          className="fixed inset-0 bg-black/50 z-30 lg:hidden"
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 lg:hidden"
           onClick={onClose}
         />
       )}
 
-      {/* Right Panel */}
+      {/* Right Panel — fixed, z-40 */}
       <aside
-        className={`fixed right-0 top-0 bottom-0 w-96 bg-slate-900 border-l border-slate-800 flex flex-col transition-all duration-300 ease-in-out z-40 ${
-          open ? 'translate-x-0' : 'translate-x-full'
-        } lg:relative lg:translate-x-0`}
+        className={`fixed right-0 top-0 bottom-0 w-96 glass-heavy flex flex-col
+                    transition-transform duration-300 ease-in-out z-40
+                    border-l border-white/[0.06] shadow-glass-card
+                    ${open ? 'translate-x-0' : 'translate-x-full'}`}
       >
-        {/* Header */}
-        <div className="h-16 border-b border-slate-800 flex items-center justify-between px-6 flex-shrink-0">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-gradient-to-br from-indigo-500 to-purple-500 rounded flex items-center justify-center">
-              <span className="text-white text-xs font-bold">AI</span>
+        {/* ── Header ── */}
+        <div className="h-16 border-b border-white/[0.06] flex items-center justify-between px-5 flex-shrink-0">
+          <div className="flex items-center gap-2.5">
+            {/* Gradient icon */}
+            <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-xl flex items-center justify-center shadow-neon-indigo">
+              <Sparkles className="w-4 h-4 text-white" />
             </div>
-            <h2 className="font-semibold text-slate-100">Analyst</h2>
+            <div className="flex flex-col leading-tight">
+              <h2 className="text-sm font-semibold text-slate-100">AI Analyst</h2>
+              <span className="text-[10px] text-indigo-400 font-medium tracking-widest uppercase">
+                Powered by Predicto
+              </span>
+            </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1 hover:bg-slate-800 rounded transition-colors lg:hidden"
+            id="right-panel-close"
+            className="p-1.5 glass-light rounded-lg hover:border-white/10 border border-transparent transition-all duration-200 lg:hidden"
             aria-label="Close panel"
           >
-            <X className="w-5 h-5 text-slate-400" />
+            <X className="w-4 h-4 text-slate-400" />
           </button>
         </div>
 
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gradient-to-b from-slate-900 to-slate-800/50">
+        {/* ── Messages ── */}
+        <div className="flex-1 overflow-y-auto p-5 space-y-4">
           {messages.map((message) => (
             <div
               key={message.id}
-              className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              className={`flex gap-2.5 ${
+                message.role === 'user' ? 'justify-end' : 'justify-start'
+              } animate-fade-in`}
             >
               {message.role === 'assistant' && (
-                <div className="w-6 h-6 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex-shrink-0 flex items-center justify-center">
-                  <span className="text-white text-xs font-bold">A</span>
+                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 flex-shrink-0 flex items-center justify-center shadow-neon-indigo mt-0.5">
+                  <Sparkles className="w-3.5 h-3.5 text-white" />
                 </div>
               )}
               <div
-                className={`max-w-xs px-4 py-2.5 rounded-lg text-sm ${
+                className={`max-w-[78%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${
                   message.role === 'user'
-                    ? 'bg-indigo-500 text-white'
-                    : 'bg-slate-800 text-slate-100 border border-slate-700'
+                    ? 'bg-gradient-to-br from-indigo-600 to-violet-700 text-white rounded-tr-sm shadow-neon-indigo'
+                    : 'glass text-slate-100 rounded-tl-sm'
                 }`}
               >
                 {message.content}
@@ -110,23 +127,28 @@ export default function AppRightPanel({ open, onClose }: AppRightPanelProps) {
           ))}
 
           {isLoading && (
-            <div className="flex gap-3 justify-start">
-              <div className="w-6 h-6 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex-shrink-0 flex items-center justify-center">
-                <Loader2 className="w-3 h-3 text-white animate-spin" />
+            <div className="flex gap-2.5 justify-start animate-fade-in">
+              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 flex-shrink-0 flex items-center justify-center shadow-neon-indigo">
+                <Loader2 className="w-3.5 h-3.5 text-white animate-spin" />
               </div>
-              <div className="bg-slate-800 text-slate-100 border border-slate-700 px-4 py-2.5 rounded-lg">
-                <span className="text-sm">Thinking...</span>
+              <div className="glass px-4 py-2.5 rounded-2xl rounded-tl-sm flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce [animation-delay:0ms]" />
+                <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce [animation-delay:150ms]" />
+                <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce [animation-delay:300ms]" />
               </div>
             </div>
           )}
+
+          <div ref={messagesEndRef} />
         </div>
 
-        {/* Input */}
-        <div className="border-t border-slate-800 p-4 flex-shrink-0 bg-slate-900">
-          <div className="flex gap-2">
+        {/* ── Input ── */}
+        <div className="border-t border-white/[0.06] p-4 flex-shrink-0">
+          <div className="flex gap-2 glass rounded-xl p-1 pr-1">
             <input
+              id="ai-analyst-input"
               type="text"
-              placeholder="Ask anything..."
+              placeholder="Ask anything about your data…"
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={(e) => {
@@ -136,12 +158,17 @@ export default function AppRightPanel({ open, onClose }: AppRightPanelProps) {
                 }
               }}
               disabled={isLoading}
-              className="flex-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 disabled:opacity-50"
+              className="flex-1 px-3 py-2.5 bg-transparent text-sm text-slate-100 placeholder-slate-500
+                         focus:outline-none disabled:opacity-50"
             />
             <button
+              id="ai-analyst-send"
               onClick={handleSendMessage}
               disabled={isLoading || !inputValue.trim()}
-              className="p-2 bg-indigo-500 hover:bg-indigo-600 disabled:bg-slate-700 text-white rounded-lg transition-colors flex-shrink-0"
+              className="p-2.5 bg-gradient-to-br from-indigo-600 to-violet-700 hover:from-indigo-500 hover:to-violet-600
+                         disabled:from-slate-700 disabled:to-slate-700 disabled:cursor-not-allowed
+                         text-white rounded-lg transition-all duration-200 flex-shrink-0
+                         shadow-neon-indigo disabled:shadow-none active:scale-95"
               aria-label="Send message"
             >
               {isLoading ? (
@@ -151,6 +178,9 @@ export default function AppRightPanel({ open, onClose }: AppRightPanelProps) {
               )}
             </button>
           </div>
+          <p className="text-center text-[10px] text-slate-600 mt-2">
+            AI can make mistakes. Verify important decisions.
+          </p>
         </div>
       </aside>
     </>
