@@ -1,6 +1,8 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import AppShell from './components/AppShell';
 import IntelligenceHubView from './components/IntelligenceHubView';
+import PipelineView from './views/Pipeline/PipelineView';
+import RiskRetentionView from './views/RiskRetention/RiskRetentionView';
 
 // Placeholder components for routes
 const Dashboard = () => (
@@ -23,7 +25,11 @@ const Simulator = () => (
   </div>
 );
 
+const Pipeline = () => <PipelineView />;
 
+
+
+const RiskRetention = () => <RiskRetentionView />;
 
 const WarRoom = () => (
   <div className="space-y-6">
@@ -78,6 +84,8 @@ export default function Router() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/simulator" element={<Simulator />} />
           <Route path="/intelligence-hub" element={<IntelligenceHubView />} />
+          <Route path="/pipeline" element={<Pipeline />} />
+          <Route path="/risk-retention" element={<RiskRetention />} />
           <Route path="/war-room" element={<WarRoom />} />
           <Route path="/personas" element={<Personas />} />
           <Route path="/playbooks" element={<Playbooks />} />

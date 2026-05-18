@@ -10,6 +10,8 @@ import {
   Zap,
   Target,
   Network,
+  AlertTriangle,
+  PieChart,
 } from 'lucide-react';
 
 interface AppSidebarProps {
@@ -21,6 +23,8 @@ const PRIMARY_ROUTES = [
   { path: '/dashboard', label: 'Dashboard', icon: BarChart3 },
   { path: '/simulator', label: 'Simulator', icon: Zap },
   { path: '/intelligence-hub', label: 'Intelligence Hub', icon: Brain },
+  { path: '/pipeline', label: 'Pipeline', icon: PieChart },
+  { path: '/risk-retention', label: 'Risk & Retention', icon: AlertTriangle },
   { path: '/war-room', label: 'War Room', icon: Target },
   { path: '/personas', label: 'Personas', icon: Users },
   { path: '/playbooks', label: 'Playbooks', icon: TrendingUp },
