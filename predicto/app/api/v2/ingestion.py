@@ -86,6 +86,7 @@ class HealthResponse(BaseModel):
         description="Status map for all 4 AI modules: ChurnRouter, DealPriority, CompChurn, Expansion",
     )
     ingestion_error: Optional[str]                 = Field(None)
+    sales_preview:   list[dict]                    = Field(default_factory=list)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -560,6 +561,13 @@ async def get_data_health() -> HealthResponse:
         DegradationEvent(**entry) for entry in predicto_cache_v2.degradation_log
     ]
 
+    # Extract preview of the loaded sales data (first 15 rows)
+    df = predicto_cache_v2.sales_df
+    if df is not None and not df.empty:
+        sales_preview = df.head(15).fillna("").to_dict(orient="records")
+    else:
+        sales_preview = []
+
     return HealthResponse(
         is_ready        = predicto_cache_v2.is_ready,
         health_score    = predicto_cache_v2.health_score,
@@ -569,4 +577,5 @@ async def get_data_health() -> HealthResponse:
         degradation_log = degradation_log,
         ai_modules      = ai_modules,
         ingestion_error = predicto_cache_v2.ingestion_error,
+        sales_preview   = sales_preview,
     )

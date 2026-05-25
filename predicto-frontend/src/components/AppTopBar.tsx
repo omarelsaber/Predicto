@@ -33,7 +33,7 @@ export default function AppTopBar({
             Predicto
           </h1>
           <span className="text-[10px] text-indigo-400 font-medium tracking-widest uppercase">
-            Revenue Intelligence · V3
+            Revenue Intelligence
           </span>
         </div>
       </div>

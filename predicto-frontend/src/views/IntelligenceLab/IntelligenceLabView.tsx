@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import CausalEngineView from './CausalEngine/CausalEngineView';
-import TopologyOptimizerView from './TopologyOptimizer/TopologyOptimizerView';
-import WarRoomView from './WarRoom/WarRoomView';
+import CausalEngineView from '@/views/IntelligenceLab/CausalEngine/CausalEngineView';
+import TopologyOptimizerView from '@/views/IntelligenceLab/TopologyOptimizer/TopologyOptimizerView';
+import WarRoomView from '@/views/IntelligenceLab/WarRoom/WarRoomView';
 
 export default function IntelligenceLabView() {
   const [activeTab, setActiveTab] = useState<'causal' | 'topology' | 'warroom'>('causal');

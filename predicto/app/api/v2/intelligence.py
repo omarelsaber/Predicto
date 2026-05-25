@@ -64,50 +64,78 @@ def _detect_col(df: pd.DataFrame, candidates: List[str]) -> Optional[str]:
 
 def _build_headline_kpis(cache) -> List[HeadlineKPI]:
     """
-    Extract the four headline metrics shown in the Intelligence Hub KPI bar.
+    Extract the five headline metrics shown in the Intelligence Hub KPI bar.
 
-    Handles missing tables gracefully — every metric has a defined fallback.
+    KPI keys (production):
+        current_mrr       — portfolio MRR at the most-recent snapshot period
+        mrr_delta_30d     — MRR change vs the prior snapshot period
+        gross_churn       — churned MRR ÷ prior-period MRR  (0–1 fraction)
+        nrr               — Net Revenue Retention (expansion + contraction)
+        win_rate          — closed-won ÷ total closed deals (0–1 fraction)
+
+    Dual-mode month parsing:
+        • Numeric month column (month_number, period_number…): compare integers
+        • Date-like column (snapshot_month, snapshot_date, date…): parse to datetime
     """
     kpis: List[HeadlineKPI] = []
 
-    # ── 1. Current MRR ────────────────────────────────────────────────────────
-    mrr_current = 0.0
-    mrr_delta   = None
-    mrr_trend   = "flat"
+    # ── helpers ───────────────────────────────────────────────────────────────
+    def _period_sort_key(series: pd.Series) -> pd.Series:
+        """Return a sortable series regardless of whether it is numeric or date."""
+        numeric = pd.to_numeric(series, errors="coerce")
+        if numeric.notna().mean() >= 0.8:          # ≥80 % parse as numbers → numeric
+            return numeric
+        return pd.to_datetime(series, errors="coerce")   # else parse as dates
+
+    # ── 1. Current MRR & 30-day MRR Δ ────────────────────────────────────────
+    mrr_current     = 0.0
+    mrr_delta       = None
+    mrr_trend       = "flat"
     mrr_delta_label = None
 
     snap = cache.snapshots_df
     if snap is not None and not snap.empty:
-        mrr_col = _detect_col(snap, ["mrr_at_snapshot", "mrr", "monthly_recurring_revenue"])
-        month_col = _detect_col(snap, ["snapshot_month", "month", "date", "period"])
+        mrr_col   = _detect_col(snap, ["mrr_at_snapshot", "mrr", "monthly_recurring_revenue"])
+        month_col = _detect_col(snap, [
+            "month_number", "period_number",                     # numeric first
+            "snapshot_month", "snapshot_date", "month", "date", "period",
+        ])
+
         if mrr_col:
             mrr_vals = pd.to_numeric(snap[mrr_col], errors="coerce").dropna()
+
             if month_col:
                 try:
-                    snap_sorted = snap.copy()
-                    snap_sorted[month_col] = pd.to_datetime(snap_sorted[month_col], errors="coerce")
-                    snap_sorted = snap_sorted.sort_values(month_col)
-                    # Portfolio MRR = sum of all customers at most recent snapshot
-                    last_month = snap_sorted[month_col].max()
-                    prev_month_mask = snap_sorted[month_col] < last_month
+                    snap2 = snap.copy()
+                    snap2["_period"] = _period_sort_key(snap2[month_col])
+                    snap2 = snap2.dropna(subset=["_period"]).sort_values("_period")
+
+                    last_period = snap2["_period"].max()
+                    last_mask   = snap2["_period"] == last_period
+                    prev_mask   = snap2["_period"] < last_period
+
                     curr_mrr = _safe_float(
-                        snap_sorted[snap_sorted[month_col] == last_month][mrr_col]
+                        snap2.loc[last_mask, mrr_col]
                         .pipe(pd.to_numeric, errors="coerce").sum()
                     )
-                    if prev_month_mask.any():
-                        prev_snap = snap_sorted[snap_sorted[month_col] == snap_sorted.loc[prev_month_mask, month_col].max()]
-                        prev_mrr = _safe_float(
+
+                    if prev_mask.any():
+                        prev_period = snap2.loc[prev_mask, "_period"].max()
+                        prev_snap   = snap2[snap2["_period"] == prev_period]
+                        prev_mrr    = _safe_float(
                             prev_snap[mrr_col].pipe(pd.to_numeric, errors="coerce").sum()
                         )
                         mrr_delta = round(curr_mrr - prev_mrr, 2)
                         mrr_trend = "up" if mrr_delta > 0 else ("down" if mrr_delta < 0 else "flat")
                         sign = "+" if mrr_delta >= 0 else ""
                         mrr_delta_label = f"{sign}${mrr_delta:,.0f} vs last month"
+
                     mrr_current = curr_mrr
                 except Exception as exc:
                     log.warning("MRR time-series extraction failed: %s", exc)
                     mrr_current = _safe_float(mrr_vals.sum())
             else:
+                # No time column — cannot pick a period; sum everything as fallback
                 mrr_current = _safe_float(mrr_vals.sum())
 
     kpis.append(HeadlineKPI(
@@ -120,10 +148,9 @@ def _build_headline_kpis(cache) -> List[HeadlineKPI]:
         trend=mrr_trend,
     ))
 
-    # ── 2. 30-day MRR Δ ──────────────────────────────────────────────────────
     kpis.append(HeadlineKPI(
         key="mrr_delta_30d",
-        label="30-day MRR Δ",
+        label="MRR Growth",
         value=round(mrr_delta or 0.0, 2),
         unit="currency",
         delta=None,
@@ -131,63 +158,145 @@ def _build_headline_kpis(cache) -> List[HeadlineKPI]:
         trend=mrr_trend,
     ))
 
-    # ── 3. Avg Churn Risk (portfolio-wide) ────────────────────────────────────
-    avg_churn_risk = 0.0
-    churn_trend    = "flat"
+    # ── 2. Gross Churn (churned MRR / starting MRR) ───────────────────────────
+    gross_churn       = 0.0
+    gross_churn_trend = "flat"
 
-    eng = cache.engineered_df
-    if eng is not None and not eng.empty:
-        churn_col = _detect_col(eng, ["churn_risk_score", "churn_risk", "churn_probability", "predicted_churn"])
-        if churn_col:
-            cr = pd.to_numeric(eng[churn_col], errors="coerce").dropna().clip(0, 1)
-            if not cr.empty:
-                avg_churn_risk = _safe_float(cr.mean())
-                churn_trend = "up" if avg_churn_risk > 0.40 else "down" if avg_churn_risk < 0.20 else "flat"
-    elif snap is not None and not snap.empty:
-        churn_col = _detect_col(snap, ["churn_risk_score", "churn_risk", "churn_probability"])
-        if churn_col:
-            cr = pd.to_numeric(snap[churn_col], errors="coerce").dropna().clip(0, 1)
-            if not cr.empty:
-                avg_churn_risk = _safe_float(cr.mean())
+    if snap is not None and not snap.empty and mrr_col and month_col:
+        try:
+            snap2 = snap.copy()
+            snap2["_period"] = _period_sort_key(snap2[month_col])
+            snap2 = snap2.dropna(subset=["_period"]).sort_values("_period")
 
+            last_period = snap2["_period"].max()
+            prev_mask   = snap2["_period"] < last_period
+
+            if prev_mask.any():
+                prev_period = snap2.loc[prev_mask, "_period"].max()
+                prev_df     = snap2[snap2["_period"] == prev_period].copy()
+                curr_df     = snap2[snap2["_period"] == last_period].copy()
+
+                prev_cust = set(
+                    prev_df[_detect_col(prev_df, ["customer_id", "account_id", "cust_id"]) or "customer_id"]
+                    .astype(str)
+                )
+                curr_cust = set(
+                    curr_df[_detect_col(curr_df, ["customer_id", "account_id", "cust_id"]) or "customer_id"]
+                    .astype(str)
+                )
+                churned_ids = prev_cust - curr_cust
+
+                start_mrr    = _safe_float(
+                    prev_df[mrr_col].pipe(pd.to_numeric, errors="coerce").sum()
+                )
+                churned_mrr  = _safe_float(
+                    prev_df[prev_df[_detect_col(prev_df, ["customer_id", "account_id", "cust_id"]) or "customer_id"]
+                            .astype(str)
+                            .isin(churned_ids)][mrr_col]
+                    .pipe(pd.to_numeric, errors="coerce").sum()
+                )
+                if start_mrr > 0:
+                    gross_churn = round(churned_mrr / start_mrr, 4)
+                    gross_churn_trend = "up" if gross_churn > 0.05 else "down"
+        except Exception as exc:
+            log.warning("Gross churn calculation failed: %s", exc)
+
+    # Emit as true percentage (e.g. 4.2 for 4.2%), NOT decimal fraction (0.042).
+    # Frontend formatter: `baseVal < 1 → baseVal*100` would mishandle 0.042 as 4.2
+    # correctly, but a bare 0.0 hits the "—" branch. To be safe, always pre-multiply.
     kpis.append(HeadlineKPI(
-        key="avg_churn_risk",
-        label="Avg Churn Risk",
-        value=round(avg_churn_risk, 4),
+        key="gross_churn",
+        label="Gross Churn",
+        value=round(gross_churn * 100, 2),   # e.g. 4.2 means 4.2%
         unit="percent",
         delta=None,
         delta_label=None,
-        trend=churn_trend,
+        trend=gross_churn_trend,
     ))
 
-    # ── 4. Expansion ARR Opportunity ─────────────────────────────────────────
-    expansion_arr = 0.0
-    exp_trend = "flat"
+    # ── 3. NRR (Net Revenue Retention) ────────────────────────────────────────
+    nrr       = 0.0
+    nrr_trend = "flat"
 
-    # Attempt from engineered features (expansion recommender output)
-    if eng is not None and not eng.empty:
-        exp_col = _detect_col(eng, ["predicted_expansion_arr", "expansion_arr", "expansion_opportunity"])
-        if exp_col:
-            exp_vals = pd.to_numeric(eng[exp_col], errors="coerce").dropna()
-            expansion_arr = _safe_float(exp_vals.sum())
-            exp_trend = "up" if expansion_arr > 0 else "flat"
+    if snap is not None and not snap.empty and mrr_col and month_col:
+        try:
+            snap2 = snap.copy()
+            snap2["_period"] = _period_sort_key(snap2[month_col])
+            snap2 = snap2.dropna(subset=["_period"]).sort_values("_period")
 
-    # Fallback: 20% of MRR as rough expansion proxy (disclosed in response)
-    if expansion_arr == 0.0 and mrr_current > 0:
-        expansion_arr = round(mrr_current * 0.20, 2)
-        log.debug("Expansion ARR: estimated from 20%% MRR proxy (%.2f)", expansion_arr)
+            last_period  = snap2["_period"].max()
+            prev_mask    = snap2["_period"] < last_period
+
+            if prev_mask.any():
+                prev_period = snap2.loc[prev_mask, "_period"].max()
+                cust_col    = _detect_col(snap2, ["customer_id", "account_id", "cust_id"]) or "customer_id"
+
+                prev_df = snap2[snap2["_period"] == prev_period].set_index(cust_col)[mrr_col]
+                curr_df = snap2[snap2["_period"] == last_period].set_index(cust_col)[mrr_col]
+
+                # Cohort = customers present in both periods
+                cohort   = prev_df.index.intersection(curr_df.index)
+                start_m  = _safe_float(pd.to_numeric(prev_df.loc[cohort], errors="coerce").sum())
+                end_m    = _safe_float(pd.to_numeric(curr_df.loc[cohort], errors="coerce").sum())
+
+                if start_m > 0:
+                    nrr = round(end_m / start_m, 4)
+                    nrr_trend = "up" if nrr >= 1.0 else "down"
+        except Exception as exc:
+            log.warning("NRR calculation failed: %s", exc)
+
+    # Emit as true percentage (e.g. 101.7 for 101.7%), NOT a ratio (1.017).
+    # Frontend formatter: `baseVal >= 1 → baseVal.toFixed(1)` = "1.0%" (wrong).
+    # Pre-multiply here so the formatter just appends "%" to the right number.
+    nrr_pct = round(nrr * 100, 1) if nrr > 0 else 0.0
+    nrr_delta_label = None
+    if nrr_pct > 0:
+        sign = "+" if (nrr_pct - 100) >= 0 else ""
+        nrr_delta_label = f"{sign}{nrr_pct - 100:.1f}pp vs prior cohort"
 
     kpis.append(HeadlineKPI(
-        key="expansion_arr_opportunity",
-        label="Expansion ARR Opportunity",
-        value=round(expansion_arr, 2),
-        unit="currency",
+        key="nrr",
+        label="NRR",
+        value=nrr_pct,            # e.g. 101.7 means 101.7%
+        unit="percent",
+        delta=None,
+        delta_label=nrr_delta_label,
+        trend=nrr_trend,
+    ))
+
+    # ── 4. Win Rate ───────────────────────────────────────────────────────────
+    win_rate       = 0.0
+    win_rate_trend = "flat"
+
+    sales = cache.sales_df
+    if sales is not None and not sales.empty:
+        wl_col = _detect_col(sales, ["win_loss_status", "deal_status", "outcome"])
+        if wl_col:
+            try:
+                statuses = sales[wl_col].astype(str).str.lower()
+                won_mask = statuses.isin({"closed_won", "won", "win", "closed won"})
+                lost_mask = statuses.isin({"closed_lost", "lost", "lose", "closed lost"})
+                closed   = won_mask | lost_mask
+                if closed.sum() > 0:
+                    win_rate = round(won_mask.sum() / closed.sum(), 4)
+                    win_rate_trend = "up" if win_rate >= 0.30 else "down"
+            except Exception as exc:
+                log.warning("Win-rate calculation failed: %s", exc)
+
+    # Emit as true percentage (e.g. 31.3 for 31.3%), NOT a fraction (0.313).
+    kpis.append(HeadlineKPI(
+        key="win_rate",
+        label="Win Rate",
+        value=round(win_rate * 100, 1),   # e.g. 31.3 means 31.3%
+        unit="percent",
         delta=None,
         delta_label=None,
-        trend=exp_trend,
+        trend=win_rate_trend,
     ))
 
     return kpis
+
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────

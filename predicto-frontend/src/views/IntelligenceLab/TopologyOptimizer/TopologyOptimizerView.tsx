@@ -1,218 +1,1344 @@
-import { useState } from 'react';
-import { Card, CardHeader, CardTitle, CardContent } from '../../../components/ui/Card';
-import { Play } from 'lucide-react';
+/**
+ * src/views/IntelligenceLab/TopologyOptimizer/TopologyOptimizerView.tsx
+ *
+ * Predicto V3 — Autonomous Revenue Topology Optimizer (Feature 09)
+ * Linear dark aesthetic · Tremor v3 · Tailwind v4
+ *
+ * ─── Layout ───────────────────────────────────────────────────────────────────
+ *   Left Panel  (30%)  Optimizer Controls
+ *     • 4 interactive sliders: Rep Hours, CSM Touches, Campaign Spend, Churn Weight
+ *     • Glassmorphic surface-1 card with `glass-panel` accent
+ *     • Solver Status badge with animated pulse glow
+ *     • Live objective value counter that reacts to slider changes
+ *
+ *   Right Panel (70%)  Results Workspace
+ *     • Page Header    — breadcrumb + run button + last-solved timestamp
+ *     • Zone A         — Budget Utilisation  (Tremor BarList, 3 rows)
+ *     • Zone B         — Portfolio Summary   (3 × stat tiles)
+ *     • Zone C         — Master Schedule     (Tremor Table, 12 mock customers)
+ *
+ * All data is inline mock — matches TopologyOptimizationResponse schema so
+ * swapping to live data requires only replacing const declarations with
+ * `useTopologyOptimizerQuery` hook results.
+ *
+ * Dependencies (all already in Predicto V3):
+ *   @tremor/react   — BarList, Table, TableHead, TableHeaderCell, TableBody,
+ *                     TableRow, TableCell, Card, Badge
+ *   lucide-react    — icons
+ *   CSS vars        — from index.css (--p-*, --font-*, --radius-*, .glass-panel,
+ *                     .skeleton, .status-pill, .surface-1)
+ */
 
-// Mock master schedule data
-const masterScheduleData = [
-  { id: 1, customer: 'TechCorp Global', segment: 'Enterprise', arr: 450000, intervention: 'Executive Touch', roi_score: 92 },
-  { id: 2, customer: 'CloudMesh Inc', segment: 'Mid-Market', arr: 156000, intervention: 'CSM Intensive', roi_score: 78 },
-  { id: 3, customer: 'RetailPro Solutions', segment: 'Enterprise', arr: 342000, intervention: 'Executive Touch', roi_score: 88 },
-  { id: 4, customer: 'AnalyticsPlatform Co', segment: 'Mid-Market', arr: 128000, intervention: 'Rep Campaign', roi_score: 65 },
-  { id: 5, customer: 'SecurityVault Ltd', segment: 'Enterprise', arr: 285000, intervention: 'Executive Touch', roi_score: 91 },
-  { id: 6, customer: 'InnovateSoft Inc', segment: 'Mid-Market', arr: 195000, intervention: 'CSM Intensive', roi_score: 74 },
-  { id: 7, customer: 'EnterpriseScale Ltd', segment: 'Enterprise', arr: 520000, intervention: 'Executive Touch', roi_score: 95 },
-  { id: 8, customer: 'NextGen Systems', segment: 'Mid-Market', arr: 210000, intervention: 'Rep Campaign', roi_score: 71 },
-];
+import React, { useState, useCallback, useMemo } from "react";
+import { useTopologyOptimizerMutation } from "@/hooks/useGodTierQueries";
+import {
+  BarList,
+  Table,
+  TableHead,
+  TableHeaderCell,
+  TableBody,
+  TableRow,
+  TableCell,
+  Card,
+  Badge,
+} from "@tremor/react";
+import {
+  Cpu,
+  Play,
+  RefreshCw,
+  CheckCircle2,
+  Clock,
+  Users,
+  DollarSign,
+  TrendingUp,
+  ChevronRight,
+  Zap,
+  Target,
+  Headphones,
+  Megaphone,
+  UserCheck,
+  Briefcase,
+  SlidersHorizontal,
+} from "lucide-react";
 
-const getInterventionColor = (intervention: string) => {
-  switch (intervention) {
-    case 'Executive Touch':
-      return { bg: 'bg-purple-500/20', text: 'text-purple-300', border: 'border-purple-500/50' };
-    case 'CSM Intensive':
-      return { bg: 'bg-blue-500/20', text: 'text-blue-300', border: 'border-blue-500/50' };
-    case 'Rep Campaign':
-      return { bg: 'bg-orange-500/20', text: 'text-orange-300', border: 'border-orange-500/50' };
-    default:
-      return { bg: 'bg-slate-500/20', text: 'text-slate-300', border: 'border-slate-500/50' };
-  }
+/* =============================================================================
+   ██████╗  █████╗ ████████╗ █████╗
+   ██╔══██╗██╔══██╗╚══██╔══╝██╔══██╗
+   ██║  ██║███████║   ██║   ███████║
+   ██║  ██║██╔══██║   ██║   ██╔══██║
+   ██████╔╝██║  ██║   ██║   ██║  ██║
+   ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚═╝  ╚═╝
+   All mock data — replace with useTopologyOptimizerQuery() to go live.
+============================================================================= */
+
+/* ── Budget Defaults (mirrors TopologyOptimizationRequest) ─────────────────── */
+
+const SLIDER_DEFAULTS = {
+  repHours:   200,    // max = 400
+  csmTouches: 50,     // max = 100
+  campaignK:  10,     // max = 50   (in $K; API receives × 1000)
+  churnWeight: 0.7,   // 0.0 – 1.0
 };
 
-export default function TopologyOptimizerView() {
-  const [budgets, setBudgets] = useState({
-    repHours: 240,
-    csmTouches: 156,
-    campaignBudget: 48000,
-    execTouches: 24,
-  });
+/* ── Master Schedule Rows (12 customers, mirrors CustomerIntervention[]) ────── */
 
-  const [isOptimizing, setIsOptimizing] = useState(false);
+type InterventionIcon = "rep" | "csm" | "campaign" | "exec" | "discount";
 
-  const handleOptimize = async () => {
-    setIsOptimizing(true);
-    // Simulate optimization delay
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    setIsOptimizing(false);
-  };
+interface ScheduleRow {
+  rank:          number;
+  customerId:    string;
+  customerName:  string;
+  segment:       "Enterprise" | "Mid-Market" | "SMB";
+  churnProb:     number;   // 0-1
+  arr:           number;   // raw USD
+  interventionType: InterventionIcon;
+  interventionLabel: string;
+  repHours:      number;
+  csmSessions:   number;
+  campaignSpend: number;   // USD
+  arrRetained:   number;   // USD
+  roiScore:      number;   // ratio
+  deadlineDays:  number;
+}
 
-  // Simulate resource utilization percentages
-  const resourceUtilization = [
-    { name: 'CSM Hours', used: 156, total: 180, percentage: Math.round((156 / 180) * 100) },
-    { name: 'Campaign Budget', used: 48000, total: 50000, percentage: Math.round((48000 / 50000) * 100) },
-    { name: 'Exec Touches', used: 24, total: 25, percentage: Math.round((24 / 25) * 100) },
-  ];
+const MASTER_SCHEDULE: ScheduleRow[] = [
+  {
+    rank: 1, customerId: "cust-001", customerName: "Axiom Financial",
+    segment: "Enterprise", churnProb: 0.81, arr: 480_000,
+    interventionType: "exec", interventionLabel: "Executive Sponsor",
+    repHours: 18, csmSessions: 4, campaignSpend: 2_400,
+    arrRetained: 168_480, roiScore: 18.7, deadlineDays: 7,
+  },
+  {
+    rank: 2, customerId: "cust-002", customerName: "Nexus Logistics",
+    segment: "Enterprise", churnProb: 0.74, arr: 360_000,
+    interventionType: "csm", interventionLabel: "CSM Intervention",
+    repHours: 14, csmSessions: 5, campaignSpend: 0,
+    arrRetained: 112_320, roiScore: 12.4, deadlineDays: 10,
+  },
+  {
+    rank: 3, customerId: "cust-003", customerName: "Halcyon Health",
+    segment: "Enterprise", churnProb: 0.69, arr: 310_000,
+    interventionType: "rep", interventionLabel: "Rep Hours",
+    repHours: 20, csmSessions: 3, campaignSpend: 1_200,
+    arrRetained: 97_400, roiScore: 9.8, deadlineDays: 14,
+  },
+  {
+    rank: 4, customerId: "cust-004", customerName: "Stratos Retail",
+    segment: "Mid-Market", churnProb: 0.67, arr: 195_000,
+    interventionType: "campaign", interventionLabel: "Campaign Spend",
+    repHours: 8, csmSessions: 2, campaignSpend: 3_800,
+    arrRetained: 61_230, roiScore: 8.6, deadlineDays: 14,
+  },
+  {
+    rank: 5, customerId: "cust-005", customerName: "Pinnacle SaaS",
+    segment: "Mid-Market", churnProb: 0.63, arr: 178_000,
+    interventionType: "exec", interventionLabel: "Executive Sponsor",
+    repHours: 10, csmSessions: 3, campaignSpend: 800,
+    arrRetained: 52_260, roiScore: 7.9, deadlineDays: 21,
+  },
+  {
+    rank: 6, customerId: "cust-006", customerName: "Solaris Energy",
+    segment: "Enterprise", churnProb: 0.61, arr: 420_000,
+    interventionType: "rep", interventionLabel: "Rep Hours",
+    repHours: 16, csmSessions: 2, campaignSpend: 0,
+    arrRetained: 98_280, roiScore: 7.4, deadlineDays: 21,
+  },
+  {
+    rank: 7, customerId: "cust-007", customerName: "Cedarwood Analytics",
+    segment: "Mid-Market", churnProb: 0.58, arr: 142_000,
+    interventionType: "csm", interventionLabel: "CSM Intervention",
+    repHours: 6, csmSessions: 4, campaignSpend: 600,
+    arrRetained: 38_220, roiScore: 6.8, deadlineDays: 21,
+  },
+  {
+    rank: 8, customerId: "cust-008", customerName: "Vantage HR",
+    segment: "Mid-Market", churnProb: 0.54, arr: 128_000,
+    interventionType: "discount", interventionLabel: "Discount Offer",
+    repHours: 5, csmSessions: 1, campaignSpend: 1_200,
+    arrRetained: 29_440, roiScore: 5.3, deadlineDays: 30,
+  },
+  {
+    rank: 9, customerId: "cust-009", customerName: "Oaken Fintech",
+    segment: "SMB", churnProb: 0.51, arr: 68_000,
+    interventionType: "campaign", interventionLabel: "Campaign Spend",
+    repHours: 3, csmSessions: 1, campaignSpend: 900,
+    arrRetained: 15_640, roiScore: 4.6, deadlineDays: 30,
+  },
+  {
+    rank: 10, customerId: "cust-010", customerName: "Meridian Tech",
+    segment: "Mid-Market", churnProb: 0.49, arr: 156_000,
+    interventionType: "rep", interventionLabel: "Rep Hours",
+    repHours: 9, csmSessions: 0, campaignSpend: 0,
+    arrRetained: 26_268, roiScore: 3.9, deadlineDays: 30,
+  },
+  {
+    rank: 11, customerId: "cust-011", customerName: "Blueprint Consulting",
+    segment: "SMB", churnProb: 0.46, arr: 44_000,
+    interventionType: "csm", interventionLabel: "CSM Intervention",
+    repHours: 2, csmSessions: 2, campaignSpend: 400,
+    arrRetained: 9_240, roiScore: 3.1, deadlineDays: 30,
+  },
+  {
+    rank: 12, customerId: "cust-012", customerName: "Cascade Digital",
+    segment: "SMB", churnProb: 0.41, arr: 32_000,
+    interventionType: "campaign", interventionLabel: "Campaign Spend",
+    repHours: 1, csmSessions: 0, campaignSpend: 600,
+    arrRetained: 5_248, roiScore: 2.4, deadlineDays: 30,
+  },
+];
 
-  const arrAtRisk = 3200000;
-  const projectedRetained = 2400000;
-  const retentionRate = Math.round((projectedRetained / arrAtRisk) * 100);
+/* ── Segment config ─────────────────────────────────────────────────────────── */
+
+const SEGMENT_STYLES: Record<string, { bg: string; text: string; border: string }> = {
+  Enterprise: {
+    bg:     "rgba(94, 106, 210, 0.10)",
+    text:   "#828fff",
+    border: "rgba(94, 106, 210, 0.22)",
+  },
+  "Mid-Market": {
+    bg:     "rgba(232, 163, 10, 0.10)",
+    text:   "#fbbf24",
+    border: "rgba(232, 163, 10, 0.22)",
+  },
+  SMB: {
+    bg:     "rgba(39, 166, 68, 0.10)",
+    text:   "#4ade80",
+    border: "rgba(39, 166, 68, 0.22)",
+  },
+};
+
+/* ── Intervention icon map ──────────────────────────────────────────────────── */
+
+const INTERVENTION_CONFIG: Record<InterventionIcon, {
+  Icon: React.ComponentType<{ size?: number; strokeWidth?: number }>;
+  color: string;
+  bg: string;
+}> = {
+  exec:     { Icon: Briefcase,  color: "#828fff", bg: "rgba(94,106,210,0.12)" },
+  csm:      { Icon: Headphones, color: "#4ade80", bg: "rgba(39,166,68,0.10)" },
+  rep:      { Icon: UserCheck,  color: "#93c5fd", bg: "rgba(59,130,246,0.10)" },
+  campaign: { Icon: Megaphone,  color: "#fbbf24", bg: "rgba(232,163,10,0.10)" },
+  discount: { Icon: Target,     color: "#f87171", bg: "rgba(229,72,77,0.10)"  },
+};
+
+/* =============================================================================
+   INTERNAL SUB-COMPONENTS
+============================================================================= */
+
+/* ── Slider component ───────────────────────────────────────────────────────── */
+
+interface SliderControlProps {
+  label:    string;
+  sublabel: string;
+  value:    number;
+  min:      number;
+  max:      number;
+  step:     number;
+  unit:     string;
+  color:    string;         // CSS color for the fill & thumb
+  onChange: (v: number) => void;
+  formatValue?: (v: number) => string;
+}
+
+const SliderControl: React.FC<SliderControlProps> = ({
+  label, sublabel, value, min, max, step, unit, color, onChange, formatValue,
+}) => {
+  const pct = ((value - min) / (max - min)) * 100;
+  const display = formatValue ? formatValue(value) : `${value}${unit}`;
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 min-h-screen">
-      {/* Left Sidebar: Optimizer Controls (30%) */}
-      <div className="lg:col-span-1">
-        <Card className="sticky top-20">
-          <CardHeader>
-            <CardTitle>Optimizer Controls</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Solver Status Badge */}
-            <div className="flex items-center gap-2 px-3 py-2 bg-emerald-500/20 border border-emerald-500/50 rounded">
-              <div className="w-2 h-2 bg-emerald-400 rounded-full" />
-              <span className="text-sm font-semibold text-emerald-300">Solver Status: OPTIMAL</span>
-            </div>
-
-            {/* Budget Sliders */}
-            {[
-              { key: 'repHours', label: 'Rep Hours', unit: 'hrs', min: 0, max: 500 },
-              { key: 'csmTouches', label: 'CSM Touches', unit: '', min: 0, max: 250 },
-              { key: 'campaignBudget', label: 'Campaign Budget', unit: '$K', min: 0, max: 100, step: 1000 },
-              { key: 'execTouches', label: 'Exec Touches', unit: '', min: 0, max: 50 },
-            ].map((control) => (
-              <div key={control.key}>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-xs font-semibold text-slate-300">{control.label}</label>
-                  <span className="text-sm font-bold text-indigo-400">
-                    {control.key === 'campaignBudget'
-                      ? `$${Math.round(budgets[control.key as keyof typeof budgets] / 1000)}${control.unit}`
-                      : `${budgets[control.key as keyof typeof budgets]}${control.unit}`}
-                  </span>
-                </div>
-                <input
-                  type="range"
-                  min={control.min}
-                  max={control.max}
-                  step={control.step || 1}
-                  value={budgets[control.key as keyof typeof budgets]}
-                  onChange={(e) =>
-                    setBudgets({
-                      ...budgets,
-                      [control.key]: parseInt(e.target.value),
-                    })
-                  }
-                  className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                />
-              </div>
-            ))}
-
-            {/* Run Optimizer Button */}
-            <button
-              onClick={handleOptimize}
-              disabled={isOptimizing}
-              className="w-full px-4 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-600/50 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition flex items-center justify-center gap-2"
-            >
-              <Play size={16} />
-              {isOptimizing ? 'Optimizing...' : 'Run Optimizer'}
-            </button>
-          </CardContent>
-        </Card>
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {/* Label row */}
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
+        <div>
+          <span style={{
+            fontSize: 13, fontWeight: 500, color: "var(--p-ink-muted)",
+            fontFamily: "var(--font-body)", display: "block",
+          }}>
+            {label}
+          </span>
+          <span style={{
+            fontSize: 11, color: "var(--p-ink-tertiary)",
+            fontFamily: "var(--font-body)", letterSpacing: "0.1px",
+          }}>
+            {sublabel}
+          </span>
+        </div>
+        <span style={{
+          fontFamily: "var(--font-mono)",
+          fontSize: 13,
+          fontWeight: 500,
+          color,
+          background: `${color}18`,
+          border: `1px solid ${color}28`,
+          borderRadius: "var(--radius-sm)",
+          padding: "2px 8px",
+          letterSpacing: "-0.2px",
+          whiteSpace: "nowrap",
+        }}>
+          {display}
+        </span>
       </div>
 
-      {/* Right Section: Portfolio & Schedule (70%) */}
-      <div className="lg:col-span-3 space-y-6">
-        {/* Portfolio ROI Header */}
-        <Card>
-          <CardContent className="pt-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <p className="text-xs text-slate-400 mb-2">ARR at Risk</p>
-                <p className="text-3xl font-bold text-red-400">${(arrAtRisk / 1000000).toFixed(1)}M</p>
-                <p className="text-xs text-slate-500 mt-1">Total at-risk revenue</p>
-              </div>
-              <div>
-                <p className="text-xs text-slate-400 mb-2">Projected Retained</p>
-                <p className="text-3xl font-bold text-emerald-400">${(projectedRetained / 1000000).toFixed(1)}M</p>
-                <p className="text-xs text-emerald-500 mt-1">{retentionRate}% retention rate</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      {/* Range input with custom track */}
+      <div style={{ position: "relative", height: 20, display: "flex", alignItems: "center" }}>
+        {/* Track background */}
+        <div style={{
+          position: "absolute", left: 0, right: 0, height: 4,
+          borderRadius: "var(--radius-pill)",
+          background: "var(--p-hairline-strong)",
+          overflow: "hidden",
+        }}>
+          {/* Fill */}
+          <div style={{
+            position: "absolute", left: 0, height: "100%",
+            width: `${pct}%`,
+            background: `linear-gradient(90deg, ${color}99, ${color})`,
+            borderRadius: "var(--radius-pill)",
+            transition: "width 80ms ease",
+          }} />
+        </div>
 
-        {/* Resource Utilization */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Resource Utilization</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 gap-6">
-              {resourceUtilization.map((resource, idx) => {
-                const isHigh = resource.percentage >= 90;
-                const isMedium = resource.percentage >= 70;
-                const barColor = isHigh ? 'bg-amber-500' : isMedium ? 'bg-indigo-500' : 'bg-emerald-500';
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          onChange={(e) => onChange(Number(e.target.value))}
+          style={{
+            position: "absolute",
+            width: "100%",
+            height: "100%",
+            opacity: 0,
+            cursor: "pointer",
+            zIndex: 2,
+            margin: 0,
+          }}
+          aria-label={label}
+          aria-valuemin={min}
+          aria-valuemax={max}
+          aria-valuenow={value}
+        />
 
-                return (
-                  <div key={idx}>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium text-slate-300">{resource.name}</span>
-                      <span className={`text-sm font-bold ${isHigh ? 'text-amber-400' : 'text-slate-300'}`}>
-                        {resource.percentage}%
-                      </span>
-                    </div>
-                    <div className="w-full bg-slate-700 rounded-full h-3">
-                      <div
-                        className={`${barColor} h-3 rounded-full transition-all duration-300`}
-                        style={{ width: `${resource.percentage}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
+        {/* Custom thumb */}
+        <div style={{
+          position: "absolute",
+          left: `calc(${pct}% - 8px)`,
+          width: 16,
+          height: 16,
+          borderRadius: "50%",
+          background: color,
+          boxShadow: `0 0 0 3px ${color}30, 0 0 12px ${color}50`,
+          border: "2px solid var(--p-surface-1)",
+          transition: "left 80ms ease",
+          zIndex: 1,
+          pointerEvents: "none",
+        }} />
+      </div>
 
-        {/* Master Schedule Table */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Master Schedule</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-slate-700">
-                    <th className="text-left py-3 px-4 text-slate-400 font-semibold">Customer</th>
-                    <th className="text-left py-3 px-4 text-slate-400 font-semibold">Segment</th>
-                    <th className="text-right py-3 px-4 text-slate-400 font-semibold">ARR</th>
-                    <th className="text-left py-3 px-4 text-slate-400 font-semibold">Intervention</th>
-                    <th className="text-right py-3 px-4 text-slate-400 font-semibold">ROI Score</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {masterScheduleData.map((row, idx) => {
-                    const interventionColor = getInterventionColor(row.intervention);
-                    return (
-                      <tr key={idx} className="border-b border-slate-700 hover:bg-slate-700/50 transition">
-                        <td className="py-3 px-4 text-slate-200 font-medium">{row.customer}</td>
-                        <td className="py-3 px-4 text-slate-400">{row.segment}</td>
-                        <td className="py-3 px-4 text-right text-slate-200">${(row.arr / 1000).toFixed(0)}K</td>
-                        <td className="py-3 px-4">
-                          <span
-                            className={`inline-block px-2 py-1 rounded text-xs font-semibold ${interventionColor.bg} ${interventionColor.text} border ${interventionColor.border}`}
-                          >
-                            {row.intervention}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-right">
-                          <span className="font-semibold text-indigo-400">{row.roi_score}</span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
+      {/* Min/max labels */}
+      <div style={{ display: "flex", justifyContent: "space-between" }}>
+        <span style={{ fontSize: 10, color: "var(--p-ink-tertiary)", fontFamily: "var(--font-mono)" }}>
+          {formatValue ? formatValue(min) : `${min}${unit}`}
+        </span>
+        <span style={{ fontSize: 10, color: "var(--p-ink-tertiary)", fontFamily: "var(--font-mono)" }}>
+          {formatValue ? formatValue(max) : `${max}${unit}`}
+        </span>
       </div>
     </div>
   );
-}
+};
+
+/* ── Solver Status Badge ────────────────────────────────────────────────────── */
+
+type SolverStatus = "OPTIMAL" | "FEASIBLE" | "RUNNING" | "DEGRADED";
+
+const SOLVER_CONFIG: Record<SolverStatus, { label: string; color: string; glow: string; pulse: boolean }> = {
+  OPTIMAL:  { label: "OPTIMAL",  color: "#4ade80", glow: "rgba(39,166,68,0.35)",   pulse: true  },
+  FEASIBLE: { label: "FEASIBLE", color: "#fbbf24", glow: "rgba(232,163,10,0.30)",  pulse: false },
+  RUNNING:  { label: "RUNNING",  color: "#828fff", glow: "rgba(94,106,210,0.40)",  pulse: true  },
+  DEGRADED: { label: "DEGRADED", color: "#f87171", glow: "rgba(229,72,77,0.30)",   pulse: false },
+};
+
+const SolverStatusBadge: React.FC<{ status: SolverStatus; objectiveValue: number }> = ({
+  status, objectiveValue,
+}) => {
+  const { label, color, glow, pulse } = SOLVER_CONFIG[status];
+  const isRunning = status === "RUNNING";
+
+  return (
+    <div style={{
+      background: "rgba(20,21,22,0.72)",
+      backdropFilter: "blur(12px)",
+      WebkitBackdropFilter: "blur(12px)",
+      border: `1px solid ${color}28`,
+      borderRadius: "var(--radius-lg)",
+      padding: "14px 16px",
+      boxShadow: `0 0 24px ${glow}, inset 0 1px 0 rgba(255,255,255,0.05)`,
+      display: "flex",
+      flexDirection: "column",
+      gap: 10,
+    }}>
+      {/* Status row */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <Cpu size={13} color={color} strokeWidth={1.5} />
+          <span style={{
+            fontSize: 11,
+            fontWeight: 500,
+            letterSpacing: "0.5px",
+            textTransform: "uppercase",
+            color: "var(--p-ink-tertiary)",
+            fontFamily: "var(--font-body)",
+          }}>
+            Solver Status
+          </span>
+        </div>
+        {/* Animated indicator dot */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <div style={{ position: "relative", width: 8, height: 8 }}>
+            <div style={{
+              width: 8, height: 8, borderRadius: "50%",
+              background: color,
+              boxShadow: `0 0 6px ${color}`,
+            }} />
+            {pulse && (
+              <div style={{
+                position: "absolute", inset: -3,
+                borderRadius: "50%",
+                border: `1.5px solid ${color}`,
+                animation: "ping 1.4s cubic-bezier(0,0,0.2,1) infinite",
+                opacity: 0.6,
+              }} />
+            )}
+          </div>
+          <span style={{
+            fontFamily: "var(--font-mono)",
+            fontSize: 12,
+            fontWeight: 600,
+            color,
+            letterSpacing: "0.2px",
+          }}>
+            {label}
+          </span>
+        </div>
+      </div>
+
+      {/* Divider */}
+      <div className="divider" />
+
+      {/* Objective value */}
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 6 }}>
+        <span style={{ fontSize: 11, color: "var(--p-ink-tertiary)", fontFamily: "var(--font-body)" }}>
+          Objective Value
+        </span>
+        <span style={{
+          fontFamily: "var(--font-mono)",
+          fontSize: 15,
+          fontWeight: 600,
+          color: isRunning ? "var(--p-ink-subtle)" : color,
+          letterSpacing: "-0.3px",
+          transition: "color 400ms ease",
+        }}>
+          {isRunning ? "···" : objectiveValue.toFixed(4)}
+        </span>
+      </div>
+    </div>
+  );
+};
+
+/* ── Stat tile ──────────────────────────────────────────────────────────────── */
+
+const StatTile: React.FC<{
+  Icon: React.ComponentType<{ size?: number; strokeWidth?: number }>;
+  iconColor: string;
+  label: string;
+  value: string;
+  sub?: string;
+}> = ({ Icon, iconColor, label, value, sub }) => (
+  <div style={{
+    background: "var(--p-surface-1)",
+    border: "1px solid var(--p-hairline)",
+    borderRadius: "var(--radius-lg)",
+    padding: "16px 18px",
+    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)",
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+    flex: "1 1 0",
+    minWidth: 0,
+  }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+      <div style={{
+        width: 28, height: 28, borderRadius: "var(--radius-sm)",
+        background: `${iconColor}14`,
+        border: `1px solid ${iconColor}22`,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        flexShrink: 0,
+      }}>
+        <Icon size={13} strokeWidth={1.8} color={iconColor} />
+      </div>
+      <span style={{
+        fontSize: 11, fontWeight: 500, letterSpacing: "0.3px",
+        textTransform: "uppercase", color: "var(--p-ink-tertiary)",
+        fontFamily: "var(--font-body)",
+      }}>
+        {label}
+      </span>
+    </div>
+    <span style={{
+      fontFamily: "var(--font-display)",
+      fontSize: 24,
+      fontWeight: 600,
+      letterSpacing: "-0.8px",
+      lineHeight: 1.1,
+      color: "var(--p-ink)",
+      fontVariantNumeric: "tabular-nums",
+    }}>
+      {value}
+    </span>
+    {sub && (
+      <span style={{ fontSize: 11, color: "var(--p-ink-tertiary)", fontFamily: "var(--font-body)" }}>
+        {sub}
+      </span>
+    )}
+  </div>
+);
+
+/* ── Churn probability bar ──────────────────────────────────────────────────── */
+
+const ChurnBar: React.FC<{ value: number }> = ({ value }) => {
+  const color =
+    value >= 0.7 ? "var(--p-danger)"
+    : value >= 0.5 ? "var(--p-warning)"
+    : "var(--p-success)";
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <div style={{
+        flex: 1, height: 5, borderRadius: "var(--radius-pill)",
+        background: "var(--p-hairline-strong)", overflow: "hidden", maxWidth: 60,
+      }}>
+        <div style={{
+          height: "100%",
+          width: `${value * 100}%`,
+          background: color,
+          borderRadius: "var(--radius-pill)",
+        }} />
+      </div>
+      <span style={{
+        fontFamily: "var(--font-mono)", fontSize: 11,
+        color: "var(--p-ink-subtle)", minWidth: 30, textAlign: "right",
+      }}>
+        {(value * 100).toFixed(0)}%
+      </span>
+    </div>
+  );
+};
+
+/* ── ROI score pill ─────────────────────────────────────────────────────────── */
+
+const RoiPill: React.FC<{ value: number }> = ({ value }) => {
+  const [bg, text, border] =
+    value >= 10 ? ["rgba(94,106,210,0.12)", "#828fff", "rgba(94,106,210,0.22)"]
+    : value >= 6  ? ["rgba(39,166,68,0.10)",  "#4ade80", "rgba(39,166,68,0.20)"]
+    : value >= 3  ? ["rgba(232,163,10,0.10)", "#fbbf24", "rgba(232,163,10,0.22)"]
+    :               ["rgba(229,72,77,0.10)",  "#f87171", "rgba(229,72,77,0.22)"];
+
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 3,
+      padding: "3px 8px", borderRadius: "var(--radius-pill)",
+      background: bg, border: `1px solid ${border}`, color: text,
+      fontSize: 11, fontWeight: 600, fontFamily: "var(--font-mono)",
+      letterSpacing: "0.1px", whiteSpace: "nowrap",
+    }}>
+      <TrendingUp size={9} strokeWidth={2.5} />
+      {value.toFixed(1)}×
+    </span>
+  );
+};
+
+/* ── Deadline badge ─────────────────────────────────────────────────────────── */
+
+const DeadlineBadge: React.FC<{ days: number }> = ({ days }) => {
+  const [bg, text, border] =
+    days <= 7  ? ["rgba(229,72,77,0.10)",  "#f87171", "rgba(229,72,77,0.22)"]
+    : days <= 14 ? ["rgba(232,163,10,0.10)", "#fbbf24", "rgba(232,163,10,0.22)"]
+    :              ["rgba(98,102,109,0.10)", "var(--p-ink-subtle)", "rgba(98,102,109,0.18)"];
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 3,
+      padding: "2px 7px", borderRadius: "var(--radius-pill)",
+      background: bg, border: `1px solid ${border}`, color: text,
+      fontSize: 10, fontWeight: 500, fontFamily: "var(--font-mono)",
+      whiteSpace: "nowrap",
+    }}>
+      <Clock size={8} strokeWidth={2} />
+      {days}d
+    </span>
+  );
+};
+
+/* ── Intervention cell ──────────────────────────────────────────────────────── */
+
+const InterventionCell: React.FC<{ type: InterventionIcon; label: string }> = ({ type, label }) => {
+  const { Icon, color, bg } = INTERVENTION_CONFIG[type];
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+      <div style={{
+        width: 24, height: 24, borderRadius: "var(--radius-xs)",
+        background: bg, border: `1px solid ${color}28`,
+        display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+      }}>
+        <Icon size={11} strokeWidth={1.8} color={color} />
+      </div>
+      <span style={{
+        fontSize: 12, fontWeight: 500, color: "var(--p-ink-muted)",
+        fontFamily: "var(--font-body)", whiteSpace: "nowrap",
+      }}>
+        {label}
+      </span>
+    </div>
+  );
+};
+
+/* ── Rank badge ─────────────────────────────────────────────────────────────── */
+
+const RankBadge: React.FC<{ rank: number }> = ({ rank }) => {
+  const isTop3 = rank <= 3;
+  return (
+    <div style={{
+      width: 26, height: 26, borderRadius: "var(--radius-sm)",
+      background: isTop3 ? "rgba(94,106,210,0.12)" : "var(--p-surface-2)",
+      border: isTop3 ? "1px solid rgba(94,106,210,0.22)" : "1px solid var(--p-hairline)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      flexShrink: 0,
+    }}>
+      <span style={{
+        fontFamily: "var(--font-mono)",
+        fontSize: 11, fontWeight: 600,
+        color: isTop3 ? "#828fff" : "var(--p-ink-tertiary)",
+      }}>
+        {rank}
+      </span>
+    </div>
+  );
+};
+
+/* =============================================================================
+   MAIN VIEW COMPONENT
+============================================================================= */
+
+const formatCurrency = (n: number): string => {
+  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(2)}M`;
+  if (n >= 1_000)     return `$${(n / 1_000).toFixed(1)}K`;
+  return `$${n.toFixed(0)}`;
+};
+
+export const TopologyOptimizerView: React.FC = () => {
+  /* ── Slider state ─────────────────────────────────────────────────────────── */
+  const [repHours,   setRepHours]   = useState(SLIDER_DEFAULTS.repHours);
+  const [csmTouches, setCsmTouches] = useState(SLIDER_DEFAULTS.csmTouches);
+  const [campaignK,  setCampaignK]  = useState(SLIDER_DEFAULTS.campaignK);
+  const [churnWeight, setChurnWeight] = useState(SLIDER_DEFAULTS.churnWeight);
+
+  /* ── Simulated solver state ───────────────────────────────────────────────── */
+  const [solverStatus, setSolverStatus] = useState<SolverStatus>("OPTIMAL");
+  const [isSolving,    setIsSolving]    = useState(false);
+  const [lastSolved,   setLastSolved]   = useState("2 min ago");
+  const [optimizerData, setOptimizerData] = useState<any>(null);
+  const topologyMutation = useTopologyOptimizerMutation();
+
+  const activeSchedule = useMemo(() => {
+    if (!optimizerData) return MASTER_SCHEDULE;
+    return optimizerData.master_schedule.map((row: any) => ({
+      rank: row.priority_rank,
+      customerId: row.customer_id || "unknown",
+      customerName: row.customer,
+      segment: row.segment,
+      arr: row.arr,
+      churnProb: row.projected_churn_reduction,
+      interventionType: row.intervention_type === "REP_CALL" ? "REP_HOURS" : row.intervention_type === "CSM_TOUCH" ? "CSM" : row.intervention_type === "MARKETING_CAMPAIGN" ? "CAMPAIGN" : "NO_ACTION",
+      interventionLabel: row.intervention_type === "REP_CALL" ? "Outbound Call" : row.intervention_type === "CSM_TOUCH" ? "Strategy Session" : row.intervention_type === "MARKETING_CAMPAIGN" ? "Promo Email" : "None",
+      arrRetained: row.projected_arr_retained,
+      roiScore: row.roi_score,
+      deadlineDays: row.action_deadline_days
+    }));
+  }, [optimizerData]);
+
+
+  /* ── Derived objective value — linear mock of what the MILP returns ─────── */
+  const objectiveValue = useMemo(() => {
+    /* Simulates the LP objective: weighted sum of ARR-retention contributions */
+    const arrBase  = 714_000;   // sum of projected_arr_retained at defaults
+    const repRatio = repHours   / SLIDER_DEFAULTS.repHours;
+    const csmRatio = csmTouches / SLIDER_DEFAULTS.csmTouches;
+    const camRatio = campaignK  / SLIDER_DEFAULTS.campaignK;
+    const obj = (
+      churnWeight         * 0.55 * arrBase * repRatio
+      + churnWeight       * 0.30 * arrBase * csmRatio
+      + (1 - churnWeight) * 0.15 * arrBase * camRatio
+    ) / arrBase;
+    return obj;
+  }, [repHours, csmTouches, campaignK, churnWeight]);
+
+  /* ── Budget utilisation (for BarList) ────────────────────────────────────── */
+  const BAR_LIST_DATA = useMemo(() => {
+    if (optimizerData && optimizerData.budget_utilisation) {
+      const rep = optimizerData.budget_utilisation.find((b: any) => b.resource === "rep_hours");
+      const csm = optimizerData.budget_utilisation.find((b: any) => b.resource === "csm_interventions");
+      const cam = optimizerData.budget_utilisation.find((b: any) => b.resource === "campaign_spend");
+
+      return [
+        {
+          name:  `Rep Hours  —  ${rep ? rep.budget_used.toFixed(0) : repHours.toFixed(0)} / ${rep ? rep.budget_total : 400} h`,
+          value: rep ? Math.round(rep.utilisation_pct * 100) : Math.round((repHours / 400) * 100),
+          icon:  () => <UserCheck size={12} color="#93c5fd" style={{ marginRight: 4 }} />,
+        },
+        {
+          name:  `CSM Touches  —  ${csm ? csm.budget_used : csmTouches} / ${csm ? csm.budget_total : 100} sessions`,
+          value: csm ? Math.round(csm.utilisation_pct * 100) : Math.round((csmTouches / 100) * 100),
+          icon:  () => <Headphones size={12} color="#4ade80" style={{ marginRight: 4 }} />,
+        },
+        {
+          name:  `Campaign Spend  —  $${cam ? (cam.budget_used/1000).toFixed(1) : campaignK}K / $${cam ? (cam.budget_total/1000).toFixed(0) : 50}K`,
+          value: cam ? Math.round(cam.utilisation_pct * 100) : Math.round((campaignK / 50) * 100),
+          icon:  () => <Megaphone size={12} color="#fbbf24" style={{ marginRight: 4 }} />,
+        },
+      ];
+    }
+    
+    return [
+      {
+        name:  `Rep Hours  —  ${repHours.toFixed(0)} / 400 h`,
+        value: Math.round((repHours / 400) * 100),
+        icon:  () => <UserCheck size={12} color="#93c5fd" style={{ marginRight: 4 }} />,
+      },
+      {
+        name:  `CSM Touches  —  ${csmTouches} / 100 sessions`,
+        value: Math.round((csmTouches / 100) * 100),
+        icon:  () => <Headphones size={12} color="#4ade80" style={{ marginRight: 4 }} />,
+      },
+      {
+        name:  `Campaign Spend  —  $${campaignK}K / $50K`,
+        value: Math.round((campaignK / 50) * 100),
+        icon:  () => <Megaphone size={12} color="#fbbf24" style={{ marginRight: 4 }} />,
+      },
+    ];
+  }, [repHours, csmTouches, campaignK, optimizerData]);
+
+  /* ── Portfolio summary metrics (react to sliders) ────────────────────────── */
+  const totalArrRetained = useMemo(() => {
+    if (optimizerData) return optimizerData.segment_breakdown.reduce((s: number, r: any) => s + r.projected_arr_retained, 0);
+    const base = activeSchedule.reduce((s, r) => s + r.arrRetained, 0);
+    return base * (repHours / SLIDER_DEFAULTS.repHours) * 0.6
+      + base * (csmTouches / SLIDER_DEFAULTS.csmTouches) * 0.25
+      + base * (campaignK  / SLIDER_DEFAULTS.campaignK)  * 0.15;
+  }, [repHours, csmTouches, campaignK, activeSchedule, optimizerData]);
+
+  const totalCost = useMemo(() => {
+    if (optimizerData) return optimizerData.budget_utilisation.reduce((s: number, r: any) => s + r.budget_used, 0);
+    return repHours * 150 + csmTouches * 200 + campaignK * 1_000;
+  }, [repHours, csmTouches, campaignK, optimizerData]);
+
+  const portfolioROI = totalCost > 0 ? totalArrRetained / totalCost : 0;
+
+  /* ── Run solver (simulated 1.4s) ─────────────────────────────────────────── */
+  const handleRun = useCallback(() => {
+    if (topologyMutation.isPending) return;
+    setSolverStatus("RUNNING");
+    
+    topologyMutation.mutate({
+      max_rep_hours: repHours,
+      max_csm_interventions: csmTouches,
+      max_campaign_spend: campaignK * 1000,
+      planning_period_days: 30,
+      churn_weight: churnWeight
+    }, {
+      onSuccess: (data) => {
+        setOptimizerData(data);
+        setSolverStatus("OPTIMAL");
+        setLastSolved("just now");
+      },
+      onError: () => {
+        setSolverStatus("INFEASIBLE");
+      }
+    });
+  }, [repHours, csmTouches, campaignK, churnWeight, topologyMutation]);
+
+  /* ── Table header cell style ──────────────────────────────────────────────── */
+  const TH: React.CSSProperties = {
+    fontFamily:    "var(--font-body)",
+    fontSize:      10,
+    fontWeight:    500,
+    letterSpacing: "0.5px",
+    textTransform: "uppercase",
+    color:         "var(--p-ink-tertiary)",
+    padding:       "8px 12px",
+    borderBottom:  "1px solid var(--p-hairline)",
+    whiteSpace:    "nowrap",
+    background:    "var(--p-surface-1)",
+  };
+
+  const TD: React.CSSProperties = {
+    padding:       "10px 12px",
+    borderBottom:  "1px solid var(--p-hairline)",
+    verticalAlign: "middle",
+  };
+
+  /* ─────────────────────────────────────────────────────────────────────────── */
+  /*  RENDER                                                                     */
+  /* ─────────────────────────────────────────────────────────────────────────── */
+
+  return (
+    <div
+      className="animate-fade-in"
+      style={{
+        display:       "flex",
+        height:        "100%",
+        minHeight:     0,
+        gap:           0,
+        overflow:      "hidden",
+        background:    "var(--p-canvas)",
+      }}
+    >
+      {/* ════════════════════════════════════════════════════════════════════════
+          LEFT PANEL — Optimizer Controls (30%)
+      ═══════════════════════════════════════════════════════════════════════════ */}
+      <aside
+        style={{
+          width:          "30%",
+          minWidth:       280,
+          maxWidth:       360,
+          flexShrink:     0,
+          borderRight:    "1px solid var(--p-hairline)",
+          background:     "var(--p-surface-1)",
+          display:        "flex",
+          flexDirection:  "column",
+          overflowY:      "auto",
+          boxShadow:      "inset 0 1px 0 rgba(255,255,255,0.04)",
+        }}
+      >
+        {/* Panel header */}
+        <div style={{
+          padding:     "20px 20px 16px",
+          borderBottom:"1px solid var(--p-hairline)",
+          flexShrink:  0,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+            <div style={{
+              width: 28, height: 28, borderRadius: "var(--radius-sm)",
+              background: "rgba(94,106,210,0.12)",
+              border:     "1px solid rgba(94,106,210,0.22)",
+              display:    "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              <SlidersHorizontal size={13} color="var(--p-primary)" strokeWidth={1.8} />
+            </div>
+            <span style={{
+              fontFamily: "var(--font-display)",
+              fontSize:   14, fontWeight: 600,
+              letterSpacing: "-0.2px",
+              color: "var(--p-ink)",
+            }}>
+              Optimizer Controls
+            </span>
+          </div>
+          <p style={{
+            fontSize: 11, color: "var(--p-ink-tertiary)",
+            fontFamily: "var(--font-body)", lineHeight: 1.5, marginTop: 2,
+          }}>
+            Adjust resource budgets. The LP re-scores allocations in real time.
+          </p>
+        </div>
+
+        {/* Scrollable content */}
+        <div style={{
+          flex:    1,
+          padding: "20px",
+          display: "flex", flexDirection: "column", gap: 24,
+          overflowY: "auto",
+        }}>
+          {/* Solver Status badge */}
+          <SolverStatusBadge status={solverStatus} objectiveValue={objectiveValue} />
+
+          {/* Sliders */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
+            <SliderControl
+              label="Rep Hours"
+              sublabel="Sales rep time budget"
+              value={repHours}
+              min={20} max={400} step={10}
+              unit="h"
+              color="#93c5fd"
+              onChange={setRepHours}
+            />
+
+            <SliderControl
+              label="CSM Touches"
+              sublabel="Customer success sessions"
+              value={csmTouches}
+              min={5} max={100} step={1}
+              unit=" sessions"
+              color="#4ade80"
+              onChange={setCsmTouches}
+            />
+
+            <SliderControl
+              label="Campaign Spend"
+              sublabel="Marketing budget ceiling"
+              value={campaignK}
+              min={1} max={50} step={1}
+              unit="K"
+              color="#fbbf24"
+              onChange={setCampaignK}
+              formatValue={(v) => `$${v}K`}
+            />
+
+            <SliderControl
+              label="Churn Weight"
+              sublabel="Churn vs ARR retention mix"
+              value={churnWeight}
+              min={0} max={1} step={0.05}
+              unit=""
+              color="#828fff"
+              onChange={setChurnWeight}
+              formatValue={(v) => `${(v * 100).toFixed(0)}% churn`}
+            />
+          </div>
+
+          {/* Divider */}
+          <div className="divider" />
+
+          {/* Constraint summary */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <span style={{
+              fontSize: 10, fontWeight: 500, letterSpacing: "0.5px",
+              textTransform: "uppercase", color: "var(--p-ink-tertiary)",
+              fontFamily: "var(--font-body)",
+            }}>
+              Estimated Cost
+            </span>
+            {[
+              { label: "Rep cost",      value: formatCurrency(repHours * 150),    color: "#93c5fd" },
+              { label: "CSM cost",      value: formatCurrency(csmTouches * 200),  color: "#4ade80" },
+              { label: "Campaign",      value: formatCurrency(campaignK * 1_000), color: "#fbbf24" },
+              { label: "Total budget",  value: formatCurrency(totalCost),          color: "var(--p-ink-muted)" },
+            ].map(({ label, value, color }) => (
+              <div key={label} style={{
+                display: "flex", justifyContent: "space-between",
+                alignItems: "center",
+              }}>
+                <span style={{ fontSize: 12, color: "var(--p-ink-tertiary)", fontFamily: "var(--font-body)" }}>
+                  {label}
+                </span>
+                <span style={{
+                  fontFamily: "var(--font-mono)", fontSize: 12,
+                  fontWeight: 500, color,
+                }}>
+                  {value}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* Run button */}
+          <button
+            className="btn btn-primary"
+            onClick={handleRun}
+            disabled={isSolving}
+            style={{
+              width:      "100%",
+              gap:        8,
+              background: isSolving ? "var(--p-surface-2)" : undefined,
+              color:      isSolving ? "var(--p-ink-subtle)" : undefined,
+              border:     isSolving ? "1px solid var(--p-hairline)" : undefined,
+              transition: "all 200ms ease",
+              boxShadow:  isSolving ? "none" : "0 0 16px rgba(94,106,210,0.25)",
+            }}
+            aria-label="Run optimizer"
+          >
+            {isSolving
+              ? <><RefreshCw size={14} style={{ animation: "spin 1s linear infinite" }} /> Solving…</>
+              : <><Play size={14} strokeWidth={2} /> Run Optimizer</>
+            }
+          </button>
+
+          {/* Footnote */}
+          <p style={{
+            fontSize: 10, color: "var(--p-ink-tertiary)",
+            fontFamily: "var(--font-body)", lineHeight: 1.5, textAlign: "center",
+          }}>
+            LP solver via SciPy HiGHS · 3-budget MILP relaxation
+          </p>
+        </div>
+      </aside>
+
+      {/* ════════════════════════════════════════════════════════════════════════
+          RIGHT PANEL — Results Workspace (70%)
+      ═══════════════════════════════════════════════════════════════════════════ */}
+      <main
+        style={{
+          flex:          1,
+          minWidth:      0,
+          display:       "flex",
+          flexDirection: "column",
+          overflowY:     "auto",
+          background:    "var(--p-canvas)",
+        }}
+      >
+        {/* ── Page Header ────────────────────────────────────────────────────── */}
+        <div style={{
+          padding:      "20px 28px 16px",
+          borderBottom: "1px solid var(--p-hairline)",
+          flexShrink:   0,
+          display:      "flex",
+          alignItems:   "center",
+          justifyContent: "space-between",
+          gap: 16,
+          background: "var(--p-surface-1)",
+          boxShadow: "inset 0 1px 0 rgba(255,255,255,0.03)",
+        }}>
+          {/* Breadcrumb */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 12, color: "var(--p-ink-tertiary)", fontFamily: "var(--font-body)" }}>
+              Intelligence Lab
+            </span>
+            <ChevronRight size={12} color="var(--p-ink-tertiary)" />
+            <span style={{ fontSize: 12, color: "var(--p-ink-muted)", fontFamily: "var(--font-body)", fontWeight: 500 }}>
+              Topology Optimizer
+            </span>
+            {/* Solver badge */}
+            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              <div style={{ width: 4, height: 4, borderRadius: "50%", background: "var(--p-hairline-strong)" }} />
+              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <div style={{
+                  width: 5, height: 5, borderRadius: "50%",
+                  background: SOLVER_CONFIG[solverStatus].color,
+                  boxShadow: `0 0 5px ${SOLVER_CONFIG[solverStatus].color}`,
+                }} />
+                <span style={{
+                  fontFamily: "var(--font-mono)", fontSize: 10,
+                  color: SOLVER_CONFIG[solverStatus].color, fontWeight: 500,
+                }}>
+                  {solverStatus}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Right: meta */}
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{
+              fontSize: 11, color: "var(--p-ink-tertiary)",
+              fontFamily: "var(--font-body)",
+              display: "flex", alignItems: "center", gap: 5,
+            }}>
+              <Clock size={11} strokeWidth={1.5} />
+              Last solved {lastSolved}
+            </span>
+            <div style={{
+              height: 16, width: 1, background: "var(--p-hairline-strong)",
+            }} />
+            <span style={{
+              fontSize: 11, color: "var(--p-ink-tertiary)",
+              fontFamily: "var(--font-body)",
+              display: "flex", alignItems: "center", gap: 5,
+            }}>
+              <Users size={11} strokeWidth={1.5} />
+              {activeSchedule.length} customers optimized
+            </span>
+          </div>
+        </div>
+
+        {/* ── Body ───────────────────────────────────────────────────────────── */}
+        <div style={{
+          flex: 1, padding: "24px 28px 32px",
+          display: "flex", flexDirection: "column", gap: 24,
+        }}>
+
+          {/* ── Zone A: Budget Utilisation (BarList) ─────────────────────────── */}
+          <section>
+            <div className="zone-header">
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span className="zone-title">Resource Utilisation</span>
+                <span style={{
+                  fontFamily: "var(--font-mono)", fontSize: 10,
+                  color: "var(--p-ink-tertiary)",
+                  background: "var(--p-surface-2)",
+                  border: "1px solid var(--p-hairline)",
+                  borderRadius: "var(--radius-sm)",
+                  padding: "1px 6px",
+                }}>
+                  % of budget consumed
+                </span>
+              </div>
+              <Zap size={13} color="var(--p-ink-tertiary)" strokeWidth={1.5} />
+            </div>
+
+            <div style={{
+              background:   "var(--p-surface-1)",
+              border:       "1px solid var(--p-hairline)",
+              borderRadius: "var(--radius-xl)",
+              padding:      "20px 22px",
+              boxShadow:    "inset 0 1px 0 rgba(255,255,255,0.04)",
+            }}>
+              <BarList
+                data={BAR_LIST_DATA}
+                valueFormatter={(v) => `${v}%`}
+                color="indigo"
+                className="mt-0"
+              />
+
+              {/* Supplemental stats under BarList */}
+              <div style={{
+                display:       "flex",
+                gap:           16,
+                marginTop:     16,
+                paddingTop:    14,
+                borderTop:     "1px solid var(--p-hairline)",
+                flexWrap:      "wrap",
+              }}>
+                {[
+                  { label: "Rep cost/hr",   value: "$150",                     color: "#93c5fd" },
+                  { label: "CSM cost/session", value: "$200",                  color: "#4ade80" },
+                  { label: "n_variables",   value: `${activeSchedule.length * 3}`, color: "var(--p-ink-subtle)" },
+                  { label: "n_constraints", value: `${3 + activeSchedule.length * 3}`, color: "var(--p-ink-subtle)" },
+                ].map(({ label, value, color }) => (
+                  <div key={label} style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                    <span style={{ fontSize: 10, color: "var(--p-ink-tertiary)", fontFamily: "var(--font-body)", letterSpacing: "0.3px", textTransform: "uppercase" }}>
+                      {label}
+                    </span>
+                    <span style={{ fontSize: 13, fontWeight: 500, color, fontFamily: "var(--font-mono)" }}>
+                      {value}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          {/* ── Zone B: Portfolio Summary tiles ──────────────────────────────── */}
+          <section>
+            <div className="zone-header">
+              <span className="zone-title">Portfolio Impact</span>
+            </div>
+            <div style={{ display: "flex", gap: 12 }}>
+              <StatTile
+                Icon={DollarSign}
+                iconColor="#828fff"
+                label="ARR Projected Retained"
+                value={formatCurrency(totalArrRetained)}
+                sub={`from ${activeSchedule.length} at-risk customers`}
+              />
+              <StatTile
+                Icon={TrendingUp}
+                iconColor="#4ade80"
+                label="Portfolio ROI"
+                value={`${portfolioROI.toFixed(1)}×`}
+                sub="retained / total cost"
+              />
+              <StatTile
+                Icon={Target}
+                iconColor="#fbbf24"
+                label="Total Resource Cost"
+                value={formatCurrency(totalCost)}
+                sub="rep + CSM + campaign"
+              />
+            </div>
+          </section>
+
+          {/* ── Zone C: Master Schedule Table ────────────────────────────────── */}
+          <section style={{ flex: 1, minHeight: 0 }}>
+            <div className="zone-header">
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span className="zone-title">Master Schedule</span>
+                <span style={{
+                  display: "inline-flex", alignItems: "center", gap: 4,
+                  fontFamily: "var(--font-mono)", fontSize: 10,
+                  color: "#828fff",
+                  background: "rgba(94,106,210,0.10)",
+                  border: "1px solid rgba(94,106,210,0.20)",
+                  borderRadius: "var(--radius-pill)",
+                  padding: "2px 8px",
+                }}>
+                  <CheckCircle2 size={9} strokeWidth={2.5} />
+                  {activeSchedule.length} actions queued
+                </span>
+              </div>
+              <span style={{ fontSize: 11, color: "var(--p-ink-tertiary)", fontFamily: "var(--font-body)" }}>
+                Sorted by ROI — act on rank 1 first
+              </span>
+            </div>
+
+            <div style={{
+              background:   "var(--p-surface-1)",
+              border:       "1px solid var(--p-hairline)",
+              borderRadius: "var(--radius-xl)",
+              overflow:     "hidden",
+              boxShadow:    "inset 0 1px 0 rgba(255,255,255,0.04)",
+            }}>
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 780 }}>
+                  <thead>
+                    <tr>
+                      <th style={{ ...TH, width: 44, textAlign: "center" }}>#</th>
+                      <th style={{ ...TH }}>Customer</th>
+                      <th style={{ ...TH }}>Segment</th>
+                      <th style={{ ...TH, textAlign: "right" }}>ARR</th>
+                      <th style={{ ...TH }}>Churn Risk</th>
+                      <th style={{ ...TH }}>Intervention</th>
+                      <th style={{ ...TH, textAlign: "right" }}>ARR Retained</th>
+                      <th style={{ ...TH, textAlign: "center" }}>ROI</th>
+                      <th style={{ ...TH, textAlign: "center" }}>Act by</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {activeSchedule.map((row, idx) => {
+                      const isLast = idx === activeSchedule.length - 1;
+                      const seg = SEGMENT_STYLES[row.segment];
+                      return (
+                        <tr
+                          key={row.customerId}
+                          style={{
+                            background: idx % 2 === 0 ? "transparent" : "rgba(255,255,255,0.01)",
+                            transition: "background 100ms ease",
+                          }}
+                          onMouseEnter={(e) => {
+                            (e.currentTarget as HTMLElement).style.background = "rgba(94,106,210,0.04)";
+                          }}
+                          onMouseLeave={(e) => {
+                            (e.currentTarget as HTMLElement).style.background =
+                              idx % 2 === 0 ? "transparent" : "rgba(255,255,255,0.01)";
+                          }}
+                        >
+                          {/* Rank */}
+                          <td style={{ ...TD, borderBottom: isLast ? "none" : TD.borderBottom, textAlign: "center", paddingLeft: 12, paddingRight: 8 }}>
+                            <RankBadge rank={row.rank} />
+                          </td>
+
+                          {/* Customer */}
+                          <td style={{ ...TD, borderBottom: isLast ? "none" : TD.borderBottom }}>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                              <span style={{
+                                fontSize: 12, fontWeight: 500,
+                                color: "var(--p-ink-muted)",
+                                fontFamily: "var(--font-body)",
+                                whiteSpace: "nowrap",
+                              }}>
+                                {row.customerName}
+                              </span>
+                              <span style={{
+                                fontSize: 10, color: "var(--p-ink-tertiary)",
+                                fontFamily: "var(--font-mono)",
+                              }}>
+                                {row.customerId}
+                              </span>
+                            </div>
+                          </td>
+
+                          {/* Segment */}
+                          <td style={{ ...TD, borderBottom: isLast ? "none" : TD.borderBottom }}>
+                            <span style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              padding: "2px 8px",
+                              borderRadius: "var(--radius-pill)",
+                              fontSize: 11, fontWeight: 500,
+                              background: seg.bg,
+                              color: seg.text,
+                              border: `1px solid ${seg.border}`,
+                              fontFamily: "var(--font-body)",
+                              whiteSpace: "nowrap",
+                            }}>
+                              {row.segment}
+                            </span>
+                          </td>
+
+                          {/* ARR */}
+                          <td style={{ ...TD, borderBottom: isLast ? "none" : TD.borderBottom, textAlign: "right" }}>
+                            <span style={{
+                              fontFamily: "var(--font-mono)", fontSize: 12,
+                              fontWeight: 500, color: "var(--p-ink-muted)",
+                              letterSpacing: "-0.2px",
+                            }}>
+                              {formatCurrency(row.arr)}
+                            </span>
+                          </td>
+
+                          {/* Churn risk */}
+                          <td style={{ ...TD, borderBottom: isLast ? "none" : TD.borderBottom, minWidth: 110 }}>
+                            <ChurnBar value={row.churnProb} />
+                          </td>
+
+                          {/* Intervention */}
+                          <td style={{ ...TD, borderBottom: isLast ? "none" : TD.borderBottom }}>
+                            <InterventionCell type={row.interventionType} label={row.interventionLabel} />
+                          </td>
+
+                          {/* ARR Retained */}
+                          <td style={{ ...TD, borderBottom: isLast ? "none" : TD.borderBottom, textAlign: "right" }}>
+                            <span style={{
+                              fontFamily: "var(--font-mono)", fontSize: 12,
+                              fontWeight: 600, color: "#4ade80",
+                              letterSpacing: "-0.2px",
+                            }}>
+                              {formatCurrency(row.arrRetained)}
+                            </span>
+                          </td>
+
+                          {/* ROI */}
+                          <td style={{ ...TD, borderBottom: isLast ? "none" : TD.borderBottom, textAlign: "center" }}>
+                            <RoiPill value={row.roiScore} />
+                          </td>
+
+                          {/* Deadline */}
+                          <td style={{ ...TD, borderBottom: isLast ? "none" : TD.borderBottom, textAlign: "center" }}>
+                            <DeadlineBadge days={row.deadlineDays} />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Table footer */}
+              <div style={{
+                padding:    "10px 16px",
+                borderTop:  "1px solid var(--p-hairline)",
+                display:    "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}>
+                <span style={{ fontSize: 11, color: "var(--p-ink-tertiary)", fontFamily: "var(--font-body)" }}>
+                  Showing all {activeSchedule.length} customers · churn threshold ≥ 40%
+                </span>
+                <span style={{
+                  fontFamily: "var(--font-mono)", fontSize: 11,
+                  color: "var(--p-ink-tertiary)",
+                }}>
+                  {formatCurrency(activeSchedule.reduce((s, r) => s + r.arr, 0))} total ARR at risk
+                </span>
+              </div>
+            </div>
+          </section>
+        </div>
+      </main>
+
+      {/* ── Keyframe for CSS ping animation (inline) ─────────────────────────── */}
+      <style>{`
+        @keyframes ping {
+          75%, 100% { transform: scale(2); opacity: 0; }
+        }
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to   { transform: rotate(360deg); }
+        }
+      `}</style>
+    </div>
+  );
+};
+
+export default TopologyOptimizerView;

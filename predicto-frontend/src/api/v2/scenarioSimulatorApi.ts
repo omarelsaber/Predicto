@@ -1,1 +1,1 @@
-﻿// TODO: Code will be pasted manually
+export async function runScenarioSimulator(req: any) { return {} as any; }

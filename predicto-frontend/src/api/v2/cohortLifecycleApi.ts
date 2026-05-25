@@ -1,1 +1,1 @@
-﻿// TODO: Code will be pasted manually
+export async function fetchCohortLifecycle() { return {}; }

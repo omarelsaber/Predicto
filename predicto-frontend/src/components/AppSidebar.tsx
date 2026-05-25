@@ -109,11 +109,8 @@ export default function AppSidebar({ open, onToggle }: AppSidebarProps) {
                 <Zap className="w-4 h-4 text-white" />
               </div>
               <div className="flex flex-col leading-tight">
-                <span className="font-bold text-white text-base tracking-tight font-display">
+              <span className="text-sm font-semibold text-white tracking-tight font-display">
                   Predicto
-                </span>
-                <span className="text-[10px] text-indigo-400 font-medium tracking-widest uppercase">
-                  V3
                 </span>
               </div>
             </div>

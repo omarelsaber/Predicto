@@ -1,215 +1,1276 @@
-import { useState } from 'react';
-import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
-import { Upload, CheckCircle, AlertTriangle } from 'lucide-react';
+/**
+ * src/views/DataWorkspace/DataWorkspaceView.tsx
+ *
+ * Predicto V3 — Data Workspace View
+ * Linear dark aesthetic · Tremor v3 · Tailwind v4
+ *
+ * Layout:
+ *  ┌─────────────────────────────────────────────────────────────┐
+ *  │  TOP HALF — Ingestion Zone (2-col)                          │
+ *  │  ┌──────────────────────┐  ┌──────────────────────────────┐ │
+ *  │  │  Ingest Dropzone     │  │  Real-Time Status Feed       │ │
+ *  │  │  (glassmorphic drop) │  │  (dark terminal / console)   │ │
+ *  │  └──────────────────────┘  └──────────────────────────────┘ │
+ *  ├─────────────────────────────────────────────────────────────┤
+ *  │  BOTTOM HALF — Tabs                                         │
+ *  │  [Degradation Log]  [Data Preview]                          │
+ *  │   Tremor Table          Tremor Table                        │
+ *  └─────────────────────────────────────────────────────────────┘
+ */
 
-// Mock status feed events
-const statusFeedEvents = [
-  { id: 1, status: 'complete', message: 'ZIP extracted (0.3s)', timestamp: '2026-05-18 09:12:45' },
-  { id: 2, status: 'complete', message: 'sales_table.csv parsed (1.2s)', timestamp: '2026-05-18 09:12:46' },
-  { id: 3, status: 'warning', message: 'product_table.csv: 187 degradation events', timestamp: '2026-05-18 09:12:48' },
-  { id: 4, status: 'complete', message: 'customer_table.csv validated (0.8s)', timestamp: '2026-05-18 09:12:50' },
-  { id: 5, status: 'complete', message: 'Schema inference complete (2.1s)', timestamp: '2026-05-18 09:12:52' },
-];
+import React, { useState, useCallback, useRef, useEffect } from "react";
+import {
+  Card,
+  Table,
+  TableHead,
+  TableRow,
+  TableHeaderCell,
+  TableBody,
+  TableCell,
+  Badge,
+  Tab,
+  TabGroup,
+  TabList,
+  TabPanel,
+  TabPanels,
+} from "@tremor/react";
+import {
+  Upload,
+  FileArchive,
+  CheckCircle2,
+  AlertTriangle,
+  XCircle,
+  Info,
+  Loader2,
+  Database,
+  Terminal,
+  TableProperties,
+  RefreshCw,
+  Download,
+  Filter,
+  ChevronRight,
+} from "lucide-react";
 
-// Mock degradation log data
-const degradationLogData = [
-  { id: 1, table: 'product_table', column: 'price', issue: 'Missing values', count: 42, resolution: 'Imputed with median' },
-  { id: 2, table: 'product_table', column: 'category', issue: 'Categorical mismatch', count: 18, resolution: 'Mapped to standard taxonomy' },
-  { id: 3, table: 'product_table', column: 'sku', issue: 'Duplicates', count: 127, resolution: 'Flagged for review' },
-  { id: 4, table: 'sales_table', column: 'amount', issue: 'Negative values', count: 8, resolution: 'Filtered out' },
-  { id: 5, table: 'customer_table', column: 'email', issue: 'Invalid format', count: 23, resolution: 'Marked invalid' },
-  { id: 6, table: 'sales_table', column: 'date', issue: 'Future dates', count: 3, resolution: 'Imputed with current date' },
-];
+/* ─────────────────────────────────────────────────────────────────────────────
+   MOCK DATA
+   ───────────────────────────────────────────────────────────────────────────── */
 
-// Mock data preview
-const dataPreviewData = [
-  { id: 1, customer_id: 'CUST001', company: 'TechCorp Global', segment: 'Enterprise', arr: 450000, churn_risk: 'Low' },
-  { id: 2, customer_id: 'CUST002', company: 'CloudMesh Inc', segment: 'Mid-Market', arr: 156000, churn_risk: 'Medium' },
-  { id: 3, customer_id: 'CUST003', company: 'RetailPro Solutions', segment: 'Enterprise', arr: 342000, churn_risk: 'Low' },
-  { id: 4, customer_id: 'CUST004', company: 'AnalyticsPlatform Co', segment: 'Mid-Market', arr: 128000, churn_risk: 'High' },
-  { id: 5, customer_id: 'CUST005', company: 'SecurityVault Ltd', segment: 'Enterprise', arr: 285000, churn_risk: 'Low' },
-];
+export type LogLevel = "success" | "warning" | "error" | "info" | "muted";
 
-export default function DataWorkspaceView() {
-  const [activeTab, setActiveTab] = useState<'degradation' | 'preview'>('degradation');
-  const [isDraggingOver, setIsDraggingOver] = useState(false);
+export interface LogEntry {
+  id: string | number;
+  ts: string;
+  level: LogLevel;
+  message: string;
+}
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDraggingOver(true);
+export interface DegradationRow {
+  table: string;
+  column: string;
+  strategy: string;
+  n_affected: number;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   SMALL HELPERS / SUB-COMPONENTS
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/** Returns colour + Tremor Badge colour prop for severity */
+function severityBadgeProps(s: "HIGH" | "MEDIUM" | "LOW"): {
+  color: "red" | "yellow" | "gray";
+  label: string;
+} {
+  return s === "HIGH"
+    ? { color: "red",    label: "HIGH"   }
+    : s === "MEDIUM"
+    ? { color: "yellow", label: "MEDIUM" }
+    : { color: "gray",   label: "LOW"    };
+}
+
+/** Returns Tremor Badge colour for resolution type */
+function resolutionBadgeProps(r: string): {
+  color: "emerald" | "blue" | "amber" | "orange" | "red" | "violet";
+  label: string;
+} {
+  const map: Record<
+    string,
+    { color: "emerald" | "blue" | "amber" | "orange" | "red" | "violet"; label: string }
+  > = {
+    imputed:  { color: "blue",    label: "Imputed"  },
+    coerced:  { color: "violet",  label: "Coerced"  },
+    clamped:  { color: "amber",   label: "Clamped"  },
+    merged:   { color: "emerald", label: "Merged"   },
+    skipped:  { color: "red",     label: "Skipped"  },
+    flagged:  { color: "orange",  label: "Flagged"  },
+  };
+  return map[String(r || "").toLowerCase()] || { color: "blue", label: "Imputed" };
+}
+
+/** Returns colour for stage badge */
+function stageBadgeColor(stage: string): "emerald" | "red" | "blue" | "amber" | "gray" | "violet" {
+  const s = String(stage || "").toLowerCase();
+  if (s.includes("won"))  return "emerald";
+  if (s.includes("lost")) return "red";
+  if (s.includes("negotiation") || s.includes("legal")) return "blue";
+  if (s.includes("proposal"))    return "amber";
+  if (s.includes("discovery") || s.includes("qualification")) return "gray";
+  return "violet";
+}
+
+/** Log level → inline style for text colour */
+function logTextStyle(level: LogLevel): React.CSSProperties {
+  const base: React.CSSProperties = {
+    fontFamily: "var(--font-mono)",
+    fontSize:   13,
+    lineHeight: "1.65",
+    whiteSpace: "pre",
+  };
+  switch (level) {
+    case "success": return { ...base, color: "#4ade80" };
+    case "warning": return { ...base, color: "#fbbf24" };
+    case "error":   return { ...base, color: "#f87171" };
+    case "info":    return { ...base, color: "#818cf8" };
+    case "muted":   return { ...base, color: "#62666d" };
+  }
+}
+
+/** Log level → prefix glyph */
+function logTimestampStyle(): React.CSSProperties {
+  return {
+    fontFamily:  "var(--font-mono)",
+    fontSize:    11,
+    color:       "#3e3e44",
+    flexShrink:  0,
+    lineHeight:  "1.65",
+    letterSpacing: "0.2px",
+    marginRight: 14,
+    userSelect:  "none",
+  };
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   INGEST DROPZONE
+   ───────────────────────────────────────────────────────────────────────────── */
+
+type DropState = "idle" | "hovering" | "uploading" | "complete" | "error";
+
+export interface DropzoneProps {
+  dropState: DropState;
+  fileName: string | null;
+  progress: number;
+  onFileSelected: (file: File) => void;
+  onReset: () => void;
+}
+
+const IngestDropzone: React.FC<DropzoneProps> = ({ dropState, fileName, progress, onFileSelected, onReset }) => {
+  const [isHovering, setIsHovering] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      setIsHovering(false);
+      const file = e.dataTransfer.files?.[0];
+      if (file && (dropState === "idle" || dropState === "error")) {
+        onFileSelected(file);
+      }
+    },
+    [dropState, onFileSelected]
+  );
+
+  const handleChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file && (dropState === "idle" || dropState === "error")) {
+        onFileSelected(file);
+      }
+      if (inputRef.current) inputRef.current.value = ""; // reset
+    },
+    [dropState, onFileSelected]
+  );
+
+  const reset = () => {
+    onReset();
   };
 
-  const handleDragLeave = () => {
-    setIsDraggingOver(false);
+  /* ── Idle / hovering content ── */
+  const renderIdle = () => (
+    <>
+      {/* Icon cluster */}
+      <div style={{ position: "relative", marginBottom: 20 }}>
+        <div
+          style={{
+            width: 64, height: 64,
+            borderRadius: 16,
+            background: "rgba(94, 106, 210, 0.10)",
+            border: "1px solid rgba(94, 106, 210, 0.22)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            boxShadow: dropState === "hovering"
+              ? "0 0 24px rgba(94, 106, 210, 0.30), inset 0 1px 0 rgba(255,255,255,0.06)"
+              : "inset 0 1px 0 rgba(255,255,255,0.04)",
+            transition: "box-shadow 200ms ease",
+          }}
+        >
+          <FileArchive size={28} color={dropState === "hovering" ? "#828fff" : "#5e6ad2"} />
+        </div>
+        {/* Corner pulse */}
+        <span
+          style={{
+            position: "absolute",
+            top: -4, right: -4,
+            width: 14, height: 14,
+            borderRadius: "50%",
+            background: dropState === "hovering" ? "#828fff" : "#5e6ad2",
+            opacity: dropState === "hovering" ? 1 : 0.5,
+            transition: "all 200ms ease",
+            boxShadow: dropState === "hovering" ? "0 0 10px rgba(130,143,255,0.7)" : "none",
+          }}
+        />
+      </div>
+
+      {/* Headline */}
+      <p
+        style={{
+          fontFamily: "var(--font-display)",
+          fontSize: 15,
+          fontWeight: 500,
+          letterSpacing: "-0.2px",
+          color: dropState === "hovering" ? "var(--p-ink)" : "var(--p-ink-muted)",
+          marginBottom: 6,
+          transition: "color 180ms ease",
+          textAlign: "center",
+        }}
+      >
+        {dropState === "hovering" ? "Release to begin ingestion" : "Drop your ZIP file here"}
+      </p>
+
+      {/* Sub-line */}
+      <p
+        style={{
+          fontFamily: "var(--font-body)",
+          fontSize: 12,
+          color: "var(--p-ink-tertiary)",
+          marginBottom: 20,
+          textAlign: "center",
+          letterSpacing: "0.1px",
+        }}
+      >
+        Accepted: .zip, .csv, .json (Max 500MB)
+      </p>
+
+      {/* Pill CTA */}
+      <button
+        className="btn btn-secondary"
+        style={{ fontSize: 13, padding: "6px 16px", minHeight: 34 }}
+        onClick={() => inputRef.current?.click()}
+        type="button"
+      >
+        <Upload size={13} />
+        Browse file
+      </button>
+    </>
+  );
+
+  /* ── Uploading content ── */
+  const renderUploading = () => (
+    <div style={{ width: "100%", display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
+      <Loader2 size={32} color="#5e6ad2" style={{ animation: "spin 1s linear infinite" }} />
+      <p style={{ fontFamily: "var(--font-display)", fontSize: 14, fontWeight: 500, color: "var(--p-ink-muted)", letterSpacing: "-0.1px" }}>
+        {fileName}
+      </p>
+      {/* Progress bar */}
+      <div style={{ width: "90%", height: 4, background: "var(--p-hairline)", borderRadius: 99, overflow: "hidden" }}>
+        <div
+          style={{
+            height: "100%",
+            width: `${progress.toFixed(1)}%`,
+            background: "linear-gradient(90deg, #5e6ad2, #828fff)",
+            borderRadius: 99,
+            transition: "width 140ms ease",
+            boxShadow: "0 0 8px rgba(130,143,255,0.5)",
+          }}
+        />
+      </div>
+      <p style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--p-ink-tertiary)" }}>
+        {progress.toFixed(0)}% — validating schema…
+      </p>
+    </div>
+  );
+
+  /* ── Complete content ── */
+  const renderComplete = () => (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+      <CheckCircle2 size={36} color="#4ade80" style={{ filter: "drop-shadow(0 0 8px rgba(74,222,128,0.4))" }} />
+      <p style={{ fontFamily: "var(--font-display)", fontSize: 14, fontWeight: 500, color: "#4ade80", letterSpacing: "-0.1px" }}>
+        Ingest complete
+      </p>
+      <p style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--p-ink-tertiary)", textAlign: "center" }}>
+        {fileName}
+      </p>
+      <button
+        className="btn btn-ghost"
+        style={{ fontSize: 12, padding: "4px 12px", minHeight: 30, marginTop: 4 }}
+        onClick={reset}
+        type="button"
+      >
+        <RefreshCw size={11} />
+        Upload another
+      </button>
+    </div>
+  );
+
+  /* ── Border + glow state ── */
+  const borderColor =
+    dropState === "hovering"  ? "rgba(94, 106, 210, 0.65)"  :
+    dropState === "complete"  ? "rgba(74, 222, 128, 0.35)"  :
+    dropState === "uploading" ? "rgba(94, 106, 210, 0.40)"  :
+                                "rgba(255, 255, 255, 0.09)";
+
+  const bgColor =
+    dropState === "hovering"  ? "rgba(94, 106, 210, 0.07)"  :
+    dropState === "complete"  ? "rgba(74, 222, 128, 0.04)"  :
+    dropState === "uploading" ? "rgba(94, 106, 210, 0.05)"  :
+                                "rgba(20, 21, 22, 0.72)";
+
+  return (
+    <div
+      style={{
+        width: "100%",
+        height: "100%",
+        minHeight: 280,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 32,
+        /* glassmorphism */
+        backdropFilter: "blur(16px) saturate(160%)",
+        WebkitBackdropFilter: "blur(16px) saturate(160%)",
+        background: bgColor,
+        border: `1.5px dashed ${borderColor}`,
+        borderRadius: 16,
+        transition: "background 200ms ease, border-color 200ms ease",
+        cursor: dropState === "idle" || dropState === "hovering" ? "pointer" : "default",
+        position: "relative",
+        overflow: "hidden",
+      }}
+      onDragOver={(e) => { e.preventDefault(); if (dropState === "idle") setIsHovering(true); }}
+      onDragLeave={() => { setIsHovering(false); }}
+      onDrop={handleDrop}
+      onClick={() => { if (dropState === "idle" || dropState === "error") inputRef.current?.click(); }}
+      role="button"
+      tabIndex={0}
+      aria-label="Drag and drop a ZIP file to ingest"
+      onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && (dropState === "idle" || dropState === "error")) inputRef.current?.click(); }}
+    >
+      {/* subtle grid overlay */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          backgroundImage:
+            "linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px)",
+          backgroundSize: "32px 32px",
+          pointerEvents: "none",
+          borderRadius: 14,
+        }}
+      />
+
+      {dropState === "idle" || dropState === "error" ? renderIdle() :
+       dropState === "uploading"                     ? renderUploading() :
+                                                       renderComplete()}
+
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".zip,.csv,.json"
+        style={{ display: "none" }}
+        onChange={handleChange}
+        aria-hidden
+      />
+    </div>
+  );
+};
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   TERMINAL FEED
+   ───────────────────────────────────────────────────────────────────────────── */
+
+export const TerminalFeed: React.FC<{ logs: LogEntry[], running: boolean }> = ({ logs, running }) => {
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  /* Auto-scroll to bottom */
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [logs]);
+
+  return (
+    <div
+      style={{
+        width: "100%",
+        height: "100%",
+        minHeight: 280,
+        display: "flex",
+        flexDirection: "column",
+        background: "#050507",
+        border: "1px solid var(--p-hairline)",
+        borderRadius: 12,
+        overflow: "hidden",
+        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.03)",
+      }}
+    >
+      {/* Terminal title bar */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "9px 14px",
+          background: "#0a0a0c",
+          borderBottom: "1px solid var(--p-hairline)",
+          flexShrink: 0,
+        }}
+      >
+        {/* Traffic-light dots */}
+        <div style={{ display: "flex", gap: 6 }}>
+          <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#ff5f57", opacity: 0.9 }} />
+          <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#febc2e", opacity: 0.9 }} />
+          <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#28c840", opacity: 0.9 }} />
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+          <Terminal size={11} color="#62666d" />
+          <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "#62666d", letterSpacing: "0.3px" }}>
+            predicto-ingest · console
+          </span>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          {running && (
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 5,
+                fontFamily: "var(--font-mono)",
+                fontSize: 10,
+                color: "#4ade80",
+                letterSpacing: "0.4px",
+              }}
+            >
+              <span
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: "50%",
+                  background: "#4ade80",
+                  boxShadow: "0 0 6px rgba(74,222,128,0.8)",
+                  animation: "pulse 1s ease-in-out infinite",
+                }}
+              />
+              LIVE
+            </span>
+          )}
+          {!running && (
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "#62666d", letterSpacing: "0.4px" }}>
+              COMPLETE
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Log scroll area */}
+      <div
+        style={{
+          flex: 1,
+          overflowY: "auto",
+          padding: "12px 16px 16px",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+
+
+        {logs.map((log, index) => (
+          <div
+            key={`${log.id}-${index}`}
+            style={{
+              display: "flex",
+              alignItems: "flex-start",
+              animation: "fade-in 160ms ease both",
+            }}
+          >
+            <span style={logTimestampStyle()}>{log.ts}</span>
+            <span style={logTextStyle(log.level)}>{log.message}</span>
+          </div>
+        ))}
+
+        {/* Blinking cursor while running */}
+        {running && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 2 }}>
+            <span
+              style={{
+                display: "inline-block",
+                width: 7,
+                height: 14,
+                background: "#5e6ad2",
+                opacity: 0.85,
+                animation: "blink 1.1s step-end infinite",
+                borderRadius: 1,
+              }}
+            />
+          </div>
+        )}
+
+        <div ref={bottomRef} />
+      </div>
+
+      <style>{`
+        @keyframes blink { 0%, 100% { opacity: 0.85; } 50% { opacity: 0; } }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+        @keyframes spin  { to { transform: rotate(360deg); } }
+      `}</style>
+    </div>
+  );
+};
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   DEGRADATION LOG TABLE
+   ───────────────────────────────────────────────────────────────────────────── */
+
+const DegradationLogTable: React.FC<{ data: DegradationRow[] }> = ({ data }) => {
+  return (
+    <div style={{ width: "100%", overflowX: "auto" }}>
+      <Table>
+        <TableHead>
+          <TableRow>
+            <TableHeaderCell style={{ color: "var(--p-ink-tertiary)", fontFamily: "var(--font-body)", fontSize: 11, letterSpacing: "0.4px", textTransform: "uppercase", fontWeight: 500 }}>
+              Table
+            </TableHeaderCell>
+            <TableHeaderCell style={{ color: "var(--p-ink-tertiary)", fontFamily: "var(--font-body)", fontSize: 11, letterSpacing: "0.4px", textTransform: "uppercase", fontWeight: 500 }}>
+              Column
+            </TableHeaderCell>
+            <TableHeaderCell style={{ color: "var(--p-ink-tertiary)", fontFamily: "var(--font-body)", fontSize: 11, letterSpacing: "0.4px", textTransform: "uppercase", fontWeight: 500 }}>
+              Strategy
+            </TableHeaderCell>
+            <TableHeaderCell style={{ color: "var(--p-ink-tertiary)", fontFamily: "var(--font-body)", fontSize: 11, letterSpacing: "0.4px", textTransform: "uppercase", fontWeight: 500, textAlign: "right" }}>
+              Count
+            </TableHeaderCell>
+            <TableHeaderCell style={{ color: "var(--p-ink-tertiary)", fontFamily: "var(--font-body)", fontSize: 11, letterSpacing: "0.4px", textTransform: "uppercase", fontWeight: 500 }}>
+              Severity
+            </TableHeaderCell>
+            <TableHeaderCell style={{ color: "var(--p-ink-tertiary)", fontFamily: "var(--font-body)", fontSize: 11, letterSpacing: "0.4px", textTransform: "uppercase", fontWeight: 500 }}>
+              Resolution
+            </TableHeaderCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {data.length === 0 && (
+             <TableRow>
+               <TableCell colSpan={6}>
+                 <div style={{ padding: "20px", textAlign: "center", color: "var(--p-ink-tertiary)", fontFamily: "var(--font-body)", fontSize: 13 }}>
+                    No degradation events detected.
+                 </div>
+               </TableCell>
+             </TableRow>
+          )}
+          {data.map((row, i) => {
+            const sev = severityBadgeProps("MEDIUM");
+            const res = resolutionBadgeProps("imputed");
+            return (
+              <TableRow
+                key={i}
+                style={{
+                  borderTop: "1px solid var(--p-hairline)",
+                  transition: "background 140ms ease",
+                }}
+                className="hover:bg-[#141516]"
+              >
+                <TableCell>
+                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--p-ink-muted)" }}>
+                    {row.table}
+                  </span>
+                </TableCell>
+                <TableCell>
+                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--p-ink-subtle)" }}>
+                    {row.column}
+                  </span>
+                </TableCell>
+                <TableCell>
+                  <span style={{ fontFamily: "var(--font-body)", fontSize: 13, color: "var(--p-ink-muted)" }}>
+                    {row.strategy}
+                  </span>
+                </TableCell>
+                <TableCell style={{ textAlign: "right" }}>
+                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 13, color: "var(--p-ink)", fontVariantNumeric: "tabular-nums" }}>
+                    {row.n_affected.toLocaleString()}
+                  </span>
+                </TableCell>
+                <TableCell>
+                  <Badge color={sev.color} size="xs">
+                    {sev.label}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <Badge color={res.color} size="xs">
+                    {res.label}
+                  </Badge>
+                  <span style={{ marginLeft: 8, fontFamily: "var(--font-body)", fontSize: 12, color: "var(--p-ink-subtle)" }}>
+                    {row.strategy}
+                  </span>
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    </div>
+  );
+};
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   DATA PREVIEW TABLE
+   ───────────────────────────────────────────────────────────────────────────── */
+
+const DataPreviewTable: React.FC<{ data: any[] }> = ({ data }) => {
+  return (
+    <div style={{ width: "100%", overflowX: "auto" }}>
+      {/* File chip */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+        <span className="status-pill info">
+          <Database size={10} />
+          sales_table.csv
+        </span>
+        <span className="status-pill success">
+          <CheckCircle2 size={10} />
+          Schema validated
+        </span>
+        <span style={{ marginLeft: "auto" }}>
+          <button className="btn btn-secondary" style={{ fontSize: 12, padding: "5px 12px", minHeight: 30 }}>
+            <Download size={11} />
+            Export CSV
+          </button>
+        </span>
+      </div>
+
+      <Table>
+        <TableHead>
+          <TableRow>
+            {[
+              "Opportunity ID",
+              "Account Name",
+              "Rep",
+              "Stage",
+              "Amount (USD)",
+              "ARR (USD)",
+              "Close Date",
+              "Region",
+              "Tier",
+              "Win Prob.",
+            ].map((h) => (
+              <TableHeaderCell
+                key={h}
+                style={{
+                  color: "var(--p-ink-tertiary)",
+                  fontFamily: "var(--font-body)",
+                  fontSize: 11,
+                  letterSpacing: "0.4px",
+                  textTransform: "uppercase",
+                  fontWeight: 500,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {h}
+              </TableHeaderCell>
+            ))}
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {data.length === 0 && (
+            <TableRow>
+              <TableCell colSpan={10}>
+                <div style={{ padding: "20px", textAlign: "center", color: "var(--p-ink-tertiary)", fontFamily: "var(--font-body)", fontSize: 13 }}>
+                   Preview not available for this batch.
+                </div>
+              </TableCell>
+            </TableRow>
+          )}
+          {data.map((row, i) => {
+            const region = String(row.region || "").toUpperCase();
+            const winProbStr = String(row.win_probability || row.win_prob || "0");
+            const winProb = parseFloat(winProbStr);
+            const winProbColor = 
+              isNaN(winProb) ? "var(--p-ink-subtle)" :
+              winProb >= 80 ? "#4ade80" :
+              winProb >= 50 ? "#fbbf24" :
+              winProb === 0 ? "#f87171" :
+                              "var(--p-ink-subtle)";
+
+            return (
+              <TableRow
+                key={row.deal_id || row.opportunity_id || row.id || `row-${i}`}
+                style={{ borderTop: "1px solid var(--p-hairline)" }}
+                className="hover:bg-[#141516]"
+              >
+                <TableCell>
+                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--p-primary-hover)" }}>
+                    {row.deal_id || row.opportunity_id || "Unknown"}
+                  </span>
+                </TableCell>
+                <TableCell>
+                  <span style={{ fontFamily: "var(--font-body)", fontSize: 13, color: "var(--p-ink)", fontWeight: 500 }}>
+                    {row.account_name || row.account || "Unknown"}
+                  </span>
+                </TableCell>
+                <TableCell>
+                  <span style={{ fontFamily: "var(--font-body)", fontSize: 13, color: "var(--p-ink-muted)" }}>
+                    {row.sales_rep || row.rep_name || "Unknown"}
+                  </span>
+                </TableCell>
+                <TableCell>
+                  <Badge color={stageBadgeColor(row.win_loss_status || row.stage)} size="xs">
+                    {String(row.win_loss_status || row.stage || "Unknown")}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 13, color: "var(--p-ink)", fontVariantNumeric: "tabular-nums" }}>
+                    {row.amount || row.amount_usd || ""}
+                  </span>
+                </TableCell>
+                <TableCell>
+                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 13, color: "var(--p-ink-subtle)", fontVariantNumeric: "tabular-nums" }}>
+                    {row.arr || row.arr_usd || ""}
+                  </span>
+                </TableCell>
+                <TableCell>
+                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--p-ink-tertiary)" }}>
+                    {row.close_date || ""}
+                  </span>
+                </TableCell>
+                <TableCell>
+                  <span
+                    style={{
+                      display: "inline-block",
+                      padding: "1px 7px",
+                      borderRadius: 4,
+                      fontFamily: "var(--font-mono)",
+                      fontSize: 11,
+                      fontWeight: 500,
+                      background:
+                        region === "AMER" ? "rgba(94,106,210,0.10)"  :
+                        region === "EMEA" ? "rgba(232,163,10,0.10)"  :
+                        region === "APAC" ? "rgba(39,166,68,0.10)"   :
+                                            "rgba(255,255,255,0.05)",
+                      color:
+                        region === "AMER" ? "#818cf8" :
+                        region === "EMEA" ? "#fbbf24" :
+                        region === "APAC" ? "#4ade80" :
+                                            "var(--p-ink-tertiary)",
+                      border: "1px solid " +
+                        (region === "AMER" ? "rgba(94,106,210,0.20)"  :
+                         region === "EMEA" ? "rgba(232,163,10,0.20)"  :
+                         region === "APAC" ? "rgba(39,166,68,0.20)"   :
+                                             "rgba(255,255,255,0.10)"),
+                    }}
+                  >
+                    {row.region || "Unknown"}
+                  </span>
+                </TableCell>
+                <TableCell>
+                  <span style={{ fontFamily: "var(--font-body)", fontSize: 12, color: "var(--p-ink-subtle)" }}>
+                    {row.product_tier || row.tier || "Unknown"}
+                  </span>
+                </TableCell>
+                <TableCell>
+                  <span
+                    style={{
+                      fontFamily: "var(--font-mono)",
+                      fontSize: 13,
+                      fontVariantNumeric: "tabular-nums",
+                      color: winProbColor,
+                    }}
+                  >
+                    {winProbStr}
+                  </span>
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    </div>
+  );
+};
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   MAIN VIEW
+   ───────────────────────────────────────────────────────────────────────────── */
+
+const DataWorkspaceView: React.FC = () => {
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [activeTab, setActiveTab]       = useState<number>(0);
+
+  const [logs, setLogs] = useState<LogEntry[]>([
+    { id: 1, ts: new Date().toLocaleTimeString([], { hour12: false }), level: "info", message: "Predicto Engine v3.0 ready. Awaiting payload..." }
+  ]);
+  const [degradations, setDegradations] = useState<DegradationRow[]>([]);
+  const [previews, setPreviews] = useState<any[]>([]);
+  const [stats, setStats] = useState<any>({ tables: 0, degradationCount: 0, missing: 0 });
+
+  const [dropState, setDropState] = useState<DropState>("idle");
+  const [progress, setProgress] = useState(0);
+
+  const handleReset = () => {
+     setDropState("idle");
+     setUploadedFile(null);
+     setProgress(0);
+     setLogs([{ id: 1, ts: new Date().toLocaleTimeString([], { hour12: false }), level: "info", message: "Predicto Engine v3.0 ready. Awaiting payload..." }]);
+     setDegradations([]);
+     setPreviews([]);
+     setStats({ tables: 0, degradationCount: 0, missing: 0 });
   };
 
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDraggingOver(false);
-    // Handle file drop here
+  useEffect(() => {
+    const fetchHealth = async () => {
+      try {
+        const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8001";
+        const res = await fetch(`${API_URL}/api/v2/data/health`);
+        if (res.ok) {
+          const healthData = await res.json();
+          if (healthData.is_ready) {
+            setDegradations(healthData.degradation_log || []);
+            setPreviews(healthData.sales_preview || []);
+            setStats({
+              tables: healthData.tables_loaded?.length || 0,
+              degradationCount: healthData.degradation_log?.length || 0,
+              missing: healthData.tables_missing?.length || 0,
+            });
+            setLogs(prev => [
+              ...prev,
+              {
+                id: Date.now(),
+                ts: new Date().toLocaleTimeString([], { hour12: false }),
+                level: "success",
+                message: `✓ Reconnected to active session. Health Score: ${healthData.health_score}`
+              }
+            ]);
+            setDropState("complete");
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch initial health", err);
+      }
+    };
+    fetchHealth();
+  }, []);
+
+  const handleFileUpload = async (file: File) => {
+    setUploadedFile(file);
+    setDropState("uploading");
+    setProgress(10);
+    
+    const addLog = (level: LogLevel, message: string) => {
+      setLogs(prev => [...prev, { id: Date.now() + Math.random(), ts: new Date().toLocaleTimeString([], { hour12: false }), level, message }]);
+    };
+
+    addLog("info", `Incoming upload: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+    addLog("muted", "Initiating ingestion pipeline...");
+
+    const timeouts: number[] = [];
+    const addTimeoutLog = (level: LogLevel, message: string, delay: number) => {
+      const id = window.setTimeout(() => addLog(level, message), delay);
+      timeouts.push(id);
+    };
+
+    addTimeoutLog("info", "Extracting artifacts...", 800);
+    addTimeoutLog("info", "Running LLM Schema Alignment (Groq)...", 2200);
+    addTimeoutLog("info", "Applying schema degradation...", 3800);
+    addTimeoutLog("info", "Fitting Hybrid Fusion Model...", 5500);
+
+    const formData = new FormData();
+    formData.append("files", file);
+
+    try {
+      const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8001";
+      
+      setProgress(40);
+      const res = await fetch(`${API_URL}/api/v2/data/ingest`, {
+        method: "POST",
+        body: formData
+      });
+
+      timeouts.forEach(clearTimeout);
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.detail || `HTTP error! status: ${res.status}`);
+      }
+
+      setProgress(80);
+      const data = await res.json();
+      
+      addLog("success", `✓ Upload complete! Health Score: ${data.health_score}`);
+      addLog("info", data.message);
+      
+      if (data.tables_loaded && data.tables_loaded.length > 0) {
+          addLog("muted", `Tables loaded: ${data.tables_loaded.join(", ")}`);
+      }
+
+      addLog("muted", "Fetching degradation log...");
+      const healthRes = await fetch(`${API_URL}/api/v2/data/health`);
+      if (healthRes.ok) {
+        const healthData = await healthRes.json();
+        if (healthData.degradation_log) {
+          setDegradations(healthData.degradation_log);
+          addLog("success", `✓ Found ${healthData.degradation_log.length} degradation events.`);
+        } else {
+          setDegradations([]);
+        }
+        if (healthData.sales_preview) {
+          setPreviews(healthData.sales_preview);
+        } else {
+          setPreviews([]);
+        }
+      }
+
+      setStats({
+        tables: data.tables_loaded?.length || 0,
+        degradationCount: data.degradation_events || 0,
+        missing: data.tables_missing?.length || 0,
+      });
+
+      // ── Also trigger V1 ingest to train ML models (Forecast, Margin, Segmentation) ──
+      // This enables the /api/v1/report endpoint.
+      try {
+        addLog("info", "Training ML models (Forecast · Margin · Segmentation)…");
+        const v1Form = new FormData();
+        v1Form.append("file", file);
+        const v1Res = await fetch(`${API_URL}/api/v1/ingest`, {
+          method: "POST",
+          body: v1Form,
+        });
+        if (v1Res.ok) {
+          const v1Data = await v1Res.json();
+          addLog("success", `✓ ML models trained — ${v1Data.rows_raw} rows ingested.`);
+        } else {
+          addLog("muted", "V1 model training skipped (non-critical).");
+        }
+      } catch {
+        addLog("muted", "V1 model training skipped (backend unavailable).");
+      }
+
+      setProgress(100);
+      setDropState("complete");
+    } catch (err: any) {
+      timeouts.forEach(clearTimeout);
+      addLog("error", `✗ Upload failed: ${err.message}`);
+      setDropState("error");
+      setProgress(0);
+    }
   };
 
   return (
-    <div className="space-y-6">
-      {/* Page Header */}
-      <div className="border-b border-slate-700 pb-6">
-        <h1 className="text-3xl font-bold text-slate-50">Data Workspace</h1>
-        <p className="text-slate-400 mt-2">Upload and manage your revenue data. Predicto will automatically ingest, validate, and flag quality issues.</p>
-      </div>
-
-      {/* Top Half: Ingest Dropzone */}
-      <div className="space-y-4">
-        <div
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-          className={`border-2 border-dashed rounded-lg p-12 text-center transition cursor-pointer ${
-            isDraggingOver
-              ? 'border-indigo-500 bg-indigo-500/10'
-              : 'border-slate-600 bg-slate-800/50 hover:bg-slate-800'
-          }`}
-        >
-          <Upload size={40} className="mx-auto text-slate-400 mb-4" />
-          <p className="text-lg font-semibold text-slate-100">Drop your ZIP file here</p>
-          <p className="text-sm text-slate-400 mt-2">or click to select files</p>
-          <p className="text-xs text-slate-500 mt-3">Supports: .zip (max 500MB)</p>
+    <div
+      className="animate-fade-in"
+      style={{
+        display:        "flex",
+        flexDirection:  "column",
+        gap:            24,
+        padding:        "28px 32px 40px",
+        minHeight:      "100%",
+        background:     "var(--p-canvas)",
+      }}
+    >
+      {/* ── Page header ─────────────────────────────────────────────────────── */}
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+            <span className="t-eyebrow" style={{ color: "var(--p-ink-tertiary)" }}>
+              Predicto Platform
+            </span>
+            <ChevronRight size={12} color="var(--p-hairline-tertiary)" />
+            <span className="t-eyebrow" style={{ color: "var(--p-primary)" }}>
+              Ingest & Validate
+            </span>
+          </div>
+          <p style={{ fontSize: 13, color: "var(--p-ink-subtle)", marginTop: 4, letterSpacing: "-0.05px" }}>
+            Ingest, validate, and preview your revenue data before running the causal engine.
+          </p>
         </div>
 
-        {/* Real-Time Status Feed */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Real-Time Status Feed</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3 font-mono text-sm max-h-64 overflow-y-auto">
-              {statusFeedEvents.map((event) => (
-                <div key={event.id} className="flex items-start gap-3 pb-3 border-b border-slate-700 last:border-b-0">
-                  <div className="flex-shrink-0 pt-0.5">
-                    {event.status === 'complete' ? (
-                      <CheckCircle size={18} className="text-emerald-400" />
-                    ) : (
-                      <AlertTriangle size={18} className="text-yellow-400" />
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    <p className={event.status === 'complete' ? 'text-emerald-300' : 'text-yellow-300'}>
-                      {event.status === 'complete' ? '✓' : '⚠️'} {event.message}
+        {/* Toolbar */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: 4 }}>
+          <button className="btn btn-secondary" style={{ fontSize: 13 }}>
+            <Filter size={13} />
+            Filter
+          </button>
+          <button
+            className="btn btn-primary"
+            style={{ fontSize: 13 }}
+            onClick={() => alert("Native CRM Integrations (Salesforce, HubSpot) are coming in Predicto V4.")}
+          >
+            <Database size={13} />
+            Integrations
+          </button>
+        </div>
+      </div>
+
+      {/* ── TOP HALF — Ingestion Zone ────────────────────────────────────────── */}
+      <div
+        style={{
+          display:             "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap:                 20,
+          alignItems:          "stretch",
+        }}
+      >
+        {/* Left — Ingest Dropzone */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {/* Zone header */}
+          <div className="zone-header" style={{ marginBottom: 0 }}>
+            <span className="zone-title">
+              <Upload size={12} style={{ display: "inline", marginRight: 6, verticalAlign: "middle" }} />
+              Ingest Dropzone
+            </span>
+            {uploadedFile && (
+              <span className="status-pill success">
+                <CheckCircle2 size={10} />
+                File accepted
+              </span>
+            )}
+          </div>
+
+          {/* Drop area */}
+          <IngestDropzone 
+            dropState={dropState} 
+            fileName={uploadedFile?.name || null} 
+            progress={progress} 
+            onFileSelected={handleFileUpload} 
+            onReset={handleReset} 
+          />
+
+          {/* Supported formats note */}
+          <p style={{ fontSize: 11, color: "var(--p-ink-tertiary)", fontFamily: "var(--font-mono)", letterSpacing: "0.2px" }}>
+            Accepted: .zip, .csv, .json (Max 500MB)
+          </p>
+        </div>
+
+        {/* Right — Real-Time Status Feed */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div className="zone-header" style={{ marginBottom: 0 }}>
+            <span className="zone-title">
+              <Terminal size={12} style={{ display: "inline", marginRight: 6, verticalAlign: "middle" }} />
+              Real-Time Status Feed
+            </span>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            </div>
+          </div>
+
+          <TerminalFeed logs={logs} running={dropState === "uploading"} />
+        </div>
+      </div>
+
+      {/* Divider */}
+      <hr className="divider" />
+
+      {/* ── BOTTOM HALF — Tabs ───────────────────────────────────────────────── */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        {/* Summary stat chips */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <span className="status-pill">
+            <Database size={9} />
+            {stats.tables} tables
+          </span>
+          <span className={`status-pill ${stats.degradationCount > 0 ? "warning" : "success"}`}>
+            {stats.degradationCount > 0 ? <AlertTriangle size={9} /> : <CheckCircle2 size={9} />}
+            {stats.degradationCount} degradation events
+          </span>
+          {stats.missing > 0 && (
+            <span className="status-pill danger">
+              <XCircle size={9} />
+              {stats.missing} missing tables
+            </span>
+          )}
+        </div>
+
+        {/* Tremor TabGroup */}
+        <TabGroup
+          index={activeTab}
+          onIndexChange={setActiveTab}
+        >
+          <TabList
+            style={{
+              borderBottom: "1px solid var(--p-hairline)",
+              gap: 0,
+              marginBottom: 20,
+            }}
+          >
+            <Tab
+              style={{
+                fontFamily:     "var(--font-body)",
+                fontSize:       14,
+                fontWeight:     500,
+                padding:        "8px 16px",
+                color:          activeTab === 0 ? "var(--p-ink)" : "var(--p-ink-tertiary)",
+                borderBottom:   activeTab === 0 ? "2px solid var(--p-primary)" : "2px solid transparent",
+                transition:     "color 140ms ease, border-color 140ms ease",
+                background:     "transparent",
+                cursor:         "pointer",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <AlertTriangle size={13} />
+                Degradation Log
+                <span
+                  style={{
+                    display:      "inline-flex",
+                    alignItems:   "center",
+                    justifyContent: "center",
+                    minWidth:     18,
+                    height:       18,
+                    padding:      "0 5px",
+                    borderRadius: 9999,
+                    background:   activeTab === 0 ? "rgba(229,72,77,0.15)" : "var(--p-surface-2)",
+                    color:        activeTab === 0 ? "#f87171" : "var(--p-ink-tertiary)",
+                    fontFamily:   "var(--font-mono)",
+                    fontSize:     10,
+                    fontWeight:   500,
+                    letterSpacing: "0",
+                  }}
+                >
+                  {degradations.length}
+                </span>
+              </div>
+            </Tab>
+
+            <Tab
+              style={{
+                fontFamily:   "var(--font-body)",
+                fontSize:     14,
+                fontWeight:   500,
+                padding:      "8px 16px",
+                color:        activeTab === 1 ? "var(--p-ink)" : "var(--p-ink-tertiary)",
+                borderBottom: activeTab === 1 ? "2px solid var(--p-primary)" : "2px solid transparent",
+                transition:   "color 140ms ease, border-color 140ms ease",
+                background:   "transparent",
+                cursor:       "pointer",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <TableProperties size={13} />
+                Data Preview
+                <span
+                  style={{
+                    display:       "inline-flex",
+                    alignItems:    "center",
+                    justifyContent:"center",
+                    minWidth:      18,
+                    height:        18,
+                    padding:       "0 5px",
+                    borderRadius:  9999,
+                    background:    activeTab === 1 ? "rgba(94,106,210,0.15)" : "var(--p-surface-2)",
+                    color:         activeTab === 1 ? "var(--p-primary-hover)" : "var(--p-ink-tertiary)",
+                    fontFamily:    "var(--font-mono)",
+                    fontSize:      10,
+                    fontWeight:    500,
+                  }}
+                >
+                  {previews.length}
+                </span>
+              </div>
+            </Tab>
+          </TabList>
+
+          <TabPanels>
+            {/* ── Degradation Log tab ── */}
+            <TabPanel>
+              <Card
+                style={{
+                  background:    "var(--p-surface-1)",
+                  border:        "1px solid var(--p-hairline)",
+                  borderRadius:  12,
+                  padding:       "20px 0 0",
+                  boxShadow:     "inset 0 1px 0 rgba(255,255,255,0.04)",
+                  overflow:      "hidden",
+                }}
+              >
+                {/* Card toolbar */}
+                <div
+                  style={{
+                    display:        "flex",
+                    alignItems:     "center",
+                    justifyContent: "space-between",
+                    padding:        "0 20px 16px",
+                    borderBottom:   "1px solid var(--p-hairline)",
+                  }}
+                >
+                  <div>
+                    <p style={{ fontFamily: "var(--font-display)", fontSize: 14, fontWeight: 500, color: "var(--p-ink)", letterSpacing: "-0.1px" }}>
+                      Degradation Log
                     </p>
-                    <p className="text-xs text-slate-500 mt-1">{event.timestamp}</p>
+                    <p style={{ fontSize: 12, color: "var(--p-ink-tertiary)", marginTop: 2 }}>
+                      {degradations.length} issues found across {stats.tables} tables
+                    </p>
+                  </div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button className="btn btn-secondary" style={{ fontSize: 12, padding: "5px 12px", minHeight: 30 }}>
+                      <Filter size={11} />
+                      Filter
+                    </button>
+                    <button className="btn btn-secondary" style={{ fontSize: 12, padding: "5px 12px", minHeight: 30 }}>
+                      <Download size={11} />
+                      Export
+                    </button>
                   </div>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
 
-      {/* Bottom Half: Tabs */}
-      <div className="space-y-4">
-        {/* Tab Navigation */}
-        <div className="flex gap-4 border-b border-slate-700">
-          {[
-            { id: 'degradation', label: 'Degradation Log' },
-            { id: 'preview', label: 'Data Preview' },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
-              className={`py-3 px-1 border-b-2 font-medium text-sm transition ${
-                activeTab === tab.id
-                  ? 'border-indigo-500 text-indigo-400'
-                  : 'border-transparent text-slate-400 hover:text-slate-300'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
+                <DegradationLogTable data={degradations} />
+              </Card>
+            </TabPanel>
 
-        {/* Tab Content */}
-        {activeTab === 'degradation' && (
-          <Card>
-            <CardContent className="pt-6">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-700">
-                      <th className="text-left py-3 px-4 text-slate-400 font-semibold">Table</th>
-                      <th className="text-left py-3 px-4 text-slate-400 font-semibold">Column</th>
-                      <th className="text-left py-3 px-4 text-slate-400 font-semibold">Issue Type</th>
-                      <th className="text-center py-3 px-4 text-slate-400 font-semibold">Count</th>
-                      <th className="text-left py-3 px-4 text-slate-400 font-semibold">Resolution</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {degradationLogData.map((row, idx) => (
-                      <tr key={idx} className="border-b border-slate-700 hover:bg-slate-700/50 transition">
-                        <td className="py-3 px-4 text-slate-200 font-medium">{row.table}</td>
-                        <td className="py-3 px-4 text-slate-300">{row.column}</td>
-                        <td className="py-3 px-4">
-                          <span className="inline-flex items-center gap-1 text-yellow-300">
-                            <AlertTriangle size={14} />
-                            {row.issue}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-center text-slate-300">{row.count}</td>
-                        <td className="py-3 px-4 text-slate-400">{row.resolution}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+            {/* ── Data Preview tab ── */}
+            <TabPanel>
+              <Card
+                style={{
+                  background:   "var(--p-surface-1)",
+                  border:       "1px solid var(--p-hairline)",
+                  borderRadius: 12,
+                  padding:      "20px 0 0",
+                  boxShadow:    "inset 0 1px 0 rgba(255,255,255,0.04)",
+                  overflow:     "hidden",
+                }}
+              >
+                {/* Card toolbar */}
+                <div
+                  style={{
+                    display:        "flex",
+                    alignItems:     "center",
+                    justifyContent: "space-between",
+                    padding:        "0 20px 16px",
+                    borderBottom:   "1px solid var(--p-hairline)",
+                  }}
+                >
+                  <div>
+                    <p style={{ fontFamily: "var(--font-display)", fontSize: 14, fontWeight: 500, color: "var(--p-ink)", letterSpacing: "-0.1px" }}>
+                      Data Preview — sales_table.csv
+                    </p>
+                    <p style={{ fontSize: 12, color: "var(--p-ink-tertiary)", marginTop: 2 }}>
+                      Showing {previews.length} rows
+                    </p>
+                  </div>
 
-        {activeTab === 'preview' && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm">sales_table.csv Preview (5 rows)</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-700">
-                      <th className="text-left py-3 px-4 text-slate-400 font-semibold">Customer ID</th>
-                      <th className="text-left py-3 px-4 text-slate-400 font-semibold">Company</th>
-                      <th className="text-left py-3 px-4 text-slate-400 font-semibold">Segment</th>
-                      <th className="text-right py-3 px-4 text-slate-400 font-semibold">ARR</th>
-                      <th className="text-left py-3 px-4 text-slate-400 font-semibold">Churn Risk</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {dataPreviewData.map((row, idx) => (
-                      <tr key={idx} className="border-b border-slate-700 hover:bg-slate-700/50 transition">
-                        <td className="py-3 px-4 text-slate-300 font-mono">{row.customer_id}</td>
-                        <td className="py-3 px-4 text-slate-200 font-medium">{row.company}</td>
-                        <td className="py-3 px-4 text-slate-300">{row.segment}</td>
-                        <td className="py-3 px-4 text-right text-slate-200">${(row.arr / 1000).toFixed(0)}K</td>
-                        <td className="py-3 px-4">
-                          <span
-                            className={`inline-flex items-center px-2 py-1 rounded text-xs font-semibold ${
-                              row.churn_risk === 'Low'
-                                ? 'bg-emerald-500/20 text-emerald-300'
-                                : row.churn_risk === 'Medium'
-                                ? 'bg-yellow-500/20 text-yellow-300'
-                                : 'bg-red-500/20 text-red-300'
-                            }`}
-                          >
-                            {row.churn_risk}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <p className="text-xs text-slate-500 mt-4">Showing 5 of 2,847 rows. Load more to see complete dataset.</p>
-            </CardContent>
-          </Card>
-        )}
+                </div>
+
+                <div style={{ padding: "16px 20px 0" }}>
+                  <DataPreviewTable data={previews} />
+                </div>
+              </Card>
+            </TabPanel>
+          </TabPanels>
+        </TabGroup>
       </div>
     </div>
   );
-}
+};
+
+export default DataWorkspaceView;

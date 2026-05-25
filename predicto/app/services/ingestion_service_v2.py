@@ -50,9 +50,9 @@ log = logging.getLogger("predicto.v2.ingestion")
 TABLE_KEYWORD_MAP: dict[str, list[str]] = {
     "snapshots":   ["snapshot", "contract_snapshot", "customer_contract"],
     "product":     ["product"],
+    "attribution": ["attribution", "attr", "deal_attribution"],
     "sales":       ["sales", "crm", "deal"],
     "marketing":   ["marketing", "campaign", "mkt"],
-    "attribution": ["attribution", "attr", "deal_attribution"],
 }
 
 # Health score penalty weights (must sum ≤ 100)
@@ -123,7 +123,9 @@ def _extract_files_raw(files_data: list[tuple[str, bytes]]) -> dict[str, pd.Data
                         csv_data = zf.read(fname)
                         df = _read_csv_safe(csv_data, basename)
                         if df is not None:
-                            raw[basename] = df
+                            # Use TABLE_KEYWORD_MAP classifier
+                            key = _classify_filename(basename) or basename
+                            raw[key] = df
             except zipfile.BadZipFile:
                 log.error("Invalid ZIP file: %s", filename)
                 raise ValueError(f"The uploaded file '{filename}' is not a valid ZIP archive.")
@@ -131,7 +133,9 @@ def _extract_files_raw(files_data: list[tuple[str, bytes]]) -> dict[str, pd.Data
             basename = filename.replace("\\", "/").split("/")[-1]
             df = _read_csv_safe(data, basename)
             if df is not None:
-                raw[basename] = df
+                # Use TABLE_KEYWORD_MAP classifier
+                key = _classify_filename(basename) or basename
+                raw[key] = df
         else:
             log.warning("Ignoring unsupported file type: %s", filename)
 
@@ -310,13 +314,9 @@ async def ingest_data_files(files_data: list[tuple[str, bytes]], user_mapping: O
                 if key:
                     tables[key] = df
         else:
-            # Auto-classify using column signatures
-            from app.services.classifier import classify_zip_contents, AUTO_ASSIGN_THRESHOLD
-            classifications = classify_zip_contents(raw_tables)
-            tables = {}
-            for fname, result in classifications.items():
-                if result.table and result.confidence >= AUTO_ASSIGN_THRESHOLD and not result.collision:
-                    tables[result.table] = raw_tables[fname]
+            # Bypass strict auto-classifier so Step 3 LLM can resolve the schemas
+            # Use the fuzzy normalized keys we just set in raw_tables
+            tables = raw_tables
 
         # ── Step 3: Normalize canonical schema names before degradation ──────
         log.info("Step 3: Resolving canonical schema names on loaded tables...")
@@ -364,6 +364,9 @@ async def ingest_data_files(files_data: list[tuple[str, bytes]], user_mapping: O
                         "Step 6: Fitting ColdStartRouter on %d sequences...",
                         len(X_seq),  # type: ignore[arg-type]
                     )
+                    X_seq = np.nan_to_num(X_seq, nan=0.0)
+                    X_tab = np.nan_to_num(X_tab, nan=0.0)
+                    y = np.nan_to_num(y, nan=0.0)
                     router.fit(X_seq, X_tab, y)  # type: ignore[arg-type]
                     log.info(
                         "ColdStartRouter fitted — active_model='%s'", router.active_model

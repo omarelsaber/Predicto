@@ -24,6 +24,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
 from typing import Dict, List, Optional, Tuple
 
@@ -108,12 +109,25 @@ _CAMPAIGN_PLAYBOOKS: Dict[ExpansionCluster, Tuple[str, str]] = {
 # Heuristic churn risk signals
 _CHURN_SIGNALS = [
     # (condition_fn(row_dict), risk_delta, signal_text, action)
+    # (condition_fn(row_dict), risk_delta, signal_text, action)
 ]
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # SHARED HELPERS
 # ─────────────────────────────────────────────────────────────────────────────
+
+def _generate_human_name(customer_id: str) -> str:
+    """Generate a realistic, deterministic B2B company name from a UUID."""
+    prefixes = ["Global", "Nexus", "Cyber", "Nova", "Apex", "Zenith", "Quantum", "Vertex", "Stratos", "Omni", "Lumina", "Echo", "Atlas", "Titan", "Vanguard"]
+    suffixes = ["Tech", "Dynamics", "Corp", "Solutions", "Systems", "Industries", "Enterprises", "Networks", "Logistics", "Ventures", "Partners"]
+    
+    hash_val = int(hashlib.md5(str(customer_id).encode("utf-8")).hexdigest(), 16)
+    
+    prefix = prefixes[hash_val % len(prefixes)]
+    suffix = suffixes[(hash_val // len(prefixes)) % len(suffixes)]
+    return f"{prefix} {suffix}"
+
 
 def _detect_col(df: pd.DataFrame, candidates: List[str]) -> Optional[str]:
     """Return the first candidate column present in df, else None."""
@@ -378,7 +392,13 @@ def get_churn_warnings() -> CompetitiveChurnResponse:
     # ── Resolve source DataFrame (prefer engineered_df, fall back to snapshots) ─
     source_df: Optional[pd.DataFrame] = None
     if cache.engineered_df is not None and not cache.engineered_df.empty:
-        source_df = cache.engineered_df.copy()
+        eng = cache.engineered_df.copy()
+        cust_col_eng = _resolve_customer_col(eng)
+        date_col_eng = _detect_col(eng, ["snapshot_date", "month_number", "date", "month", "period"])
+        if cust_col_eng and date_col_eng:
+            source_df = eng.sort_values(date_col_eng).groupby(cust_col_eng, as_index=False).last()
+        else:
+            source_df = eng
         log.debug("Using engineered_df (%d rows) as churn source.", len(source_df))
     elif cache.snapshots_df is not None and not cache.snapshots_df.empty:
         # Aggregate to one row per customer (take latest snapshot)
@@ -443,6 +463,10 @@ def get_churn_warnings() -> CompetitiveChurnResponse:
         else:
             log.info("Churn scoring: heuristic fallback active.")
 
+    ml_scores_dict = {}
+    if ml_scores_df is not None and cust_col:
+        ml_scores_dict = dict(zip(ml_scores_df[cust_col].astype(str), ml_scores_df["churn_risk_score"]))
+
     # Median ARR for heuristic scoring normalisation
     arr_series = _coerce_float(source_df[arr_col], 0.0) if arr_col else pd.Series([0.0] * len(source_df))
     arr_median = float(arr_series.median()) if arr_series.any() else 1.0
@@ -450,29 +474,26 @@ def get_churn_warnings() -> CompetitiveChurnResponse:
     # ── Build ChurnCustomerRecord list ───────────────────────────────────────
     records: List[ChurnCustomerRecord] = []
 
-    for idx in source_df.index:
-        try:
-            row = source_df.loc[idx]
+    rows = source_df.to_dict("records")
+    indices = source_df.index.tolist()
+    arr_values = arr_series.values if arr_col else [0.0] * len(source_df)
 
-            customer_id = str(row[cust_col]) if cust_col else str(idx)
-            customer_name = (
-                str(row[name_col])
-                if name_col and pd.notna(row.get(name_col))
-                else customer_id
-            )
-            arr = float(arr_series.loc[idx]) if arr_col else 0.0
+    for i, row in enumerate(rows):
+        idx = indices[i]
+        try:
+            customer_id = str(row.get(cust_col)) if cust_col and pd.notna(row.get(cust_col)) else str(idx)
+            raw_name = str(row.get(name_col)) if name_col and pd.notna(row.get(name_col)) else None
+            
+            if not raw_name or (len(raw_name) > 20 and '-' in raw_name):
+                customer_name = _generate_human_name(customer_id)
+            else:
+                customer_name = raw_name
+                
+            arr = float(arr_values[i]) if arr_col else 0.0
 
             # Churn probability
-            if (
-                ml_scores_df is not None
-                and cust_col
-                and customer_id in ml_scores_df[cust_col].values
-            ):
-                churn_prob = float(
-                    ml_scores_df.loc[
-                        ml_scores_df[cust_col] == customer_id, "churn_risk_score"
-                    ].iloc[0]
-                )
+            if ml_scores_df is not None and cust_col and customer_id in ml_scores_dict:
+                churn_prob = float(ml_scores_dict[customer_id])
                 signal, action = _churn_signal_for_ml_score(churn_prob, col_map, row)
             else:
                 churn_prob = _heuristic_churn_score(row, col_map, arr_median)
@@ -598,7 +619,13 @@ def get_expansion_candidates(exclude_at_risk: bool = True) -> ExpansionCandidate
     # ── Resolve source DataFrame ─────────────────────────────────────────────
     source_df: Optional[pd.DataFrame] = None
     if cache.engineered_df is not None and not cache.engineered_df.empty:
-        source_df = cache.engineered_df.copy()
+        eng = cache.engineered_df.copy()
+        cust_col_eng = _resolve_customer_col(eng)
+        date_col_eng = _detect_col(eng, ["snapshot_date", "month_number", "date", "month", "period"])
+        if cust_col_eng and date_col_eng:
+            source_df = eng.sort_values(date_col_eng).groupby(cust_col_eng, as_index=False).last()
+        else:
+            source_df = eng
         log.debug("Using engineered_df (%d rows) as expansion source.", len(source_df))
     elif cache.snapshots_df is not None and not cache.snapshots_df.empty:
         snaps = cache.snapshots_df.copy()
@@ -668,19 +695,24 @@ def get_expansion_candidates(exclude_at_risk: bool = True) -> ExpansionCandidate
     records: List[ExpansionCandidateRecord] = []
     cluster_dist: Dict[str, int] = {c.value: 0 for c in ExpansionCluster}
 
-    for idx in source_df.index:
+    rows = source_df.to_dict("records")
+    indices = source_df.index.tolist()
+    arr_values = arr_series.values if arr_col else [0.0] * len(source_df)
+# ... (expansion logic)
+
+    for i, row in enumerate(rows):
+        idx = indices[i]
         try:
-            row = source_df.loc[idx]
+            customer_id = str(row.get(cust_col)) if cust_col and pd.notna(row.get(cust_col)) else str(idx)
+            raw_name = str(row.get(name_col)) if name_col and pd.notna(row.get(name_col)) else None
+            
+            if not raw_name or (len(raw_name) > 20 and '-' in raw_name):
+                customer_name = _generate_human_name(customer_id)
+            else:
+                customer_name = raw_name
 
-            customer_id = str(row[cust_col]) if cust_col else str(idx)
-            customer_name = (
-                str(row[name_col])
-                if name_col and pd.notna(row.get(name_col))
-                else customer_id
-            )
-            arr = float(arr_series.loc[idx])
-
-            raw_label = str(row[cluster_col]) if pd.notna(row.get(cluster_col)) else "stable"
+            arr = float(arr_values[i])
+            raw_label = str(row.get(cluster_col)) if cluster_col and pd.notna(row.get(cluster_col)) else "stable"
             cluster   = _resolve_cluster(raw_label)
             multiplier = _EXPANSION_MULTIPLIERS[cluster]
             predicted_expansion = round(arr * multiplier, 2)

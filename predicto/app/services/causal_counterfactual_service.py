@@ -399,7 +399,7 @@ def _build_heterogeneity_map(
             "Evidence is inconclusive. Run A/B tests or collect more longitudinal data.",
     }
     for lbl in unique_labels:
-        mask = labels == lbl
+        mask = np.array([x == lbl for x in labels])
         if not mask.any():
             continue
         group_df = cust_df.iloc[mask]

@@ -109,9 +109,18 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:   # noqa: ARG001
     # ─────────────────────────────────────────────────────────────────────
     t0 = time.perf_counter()
     try:
-        # logger.info("[1/4] Ingesting CSV: %s", settings.default_csv_path)
-        # await to_thread(ingest, settings.default_csv_path)
-        pass
+        import os
+        from app.services.ingestion_service_v2 import ingest_data_files
+        
+        zip_path = r"c:\Users\ASUS\OneDrive\Desktop\data\predicto_v3_data.zip"
+        if os.path.exists(zip_path):
+            logger.info("[1/4] Auto-ingesting V3 zip file: %s", zip_path)
+            with open(zip_path, 'rb') as f:
+                content = f.read()
+            files_data = [("data.zip", content)]
+            await ingest_data_files(files_data)
+        else:
+            logger.info("[1/4] No auto-ingest zip found at %s", zip_path)
     except Exception as exc:
         logger.critical(
             "STARTUP FAILED at ingestion — %s: %s",
@@ -125,10 +134,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:   # noqa: ARG001
 
     raw_df = predicto_cache.get_raw_data()
     monthly_df = predicto_cache.get_monthly_data()
+    raw_df_len = len(raw_df) if raw_df is not None else 0
+    monthly_df_len = len(monthly_df) if monthly_df is not None else 0
     _log_pillar(
         "Ingestion",
         time.perf_counter() - t0,
-        f"raw_df={len(raw_df):,} rows  monthly_df={len(monthly_df):,} rows",
+        f"raw_df={raw_df_len:,} rows  monthly_df={monthly_df_len:,} rows",
     )
 
     # ─────────────────────────────────────────────────────────────────────

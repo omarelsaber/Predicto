@@ -1,0 +1,135 @@
+{
+  "hub": {
+    "headline_kpis": [
+      {
+        "key": "current_mrr",
+        "label": "Current MRR",
+        "value": 270470065.51,
+        "unit": "currency",
+        "delta": null,
+        "delta_label": null,
+        "trend": "flat"
+      },
+      {
+        "key": "mrr_delta_30d",
+        "label": "30-day MRR Δ",
+        "value": 0,
+        "unit": "currency",
+        "delta": null,
+        "delta_label": null,
+        "trend": "flat"
+      },
+      {
+        "key": "avg_churn_risk",
+        "label": "Avg Churn Risk",
+        "value": 0.4822,
+        "unit": "percent",
+        "delta": null,
+        "delta_label": null,
+        "trend": "up"
+      },
+      {
+        "key": "expansion_arr_opportunity",
+        "label": "Expansion ARR Opportunity",
+        "value": 54094013.1,
+        "unit": "currency",
+        "delta": null,
+        "delta_label": null,
+        "trend": "flat"
+      }
+    ],
+    "revenue_risk_summary": [
+      {
+        "customer_id": "48303ec2-1fe9-4c7a-821d-a4edd060fcbf",
+        "customer_name": "48303ec2-1fe9-4c7a-821d-a4edd060fcbf",
+        "arr": 419825733.12,
+        "risk_score": 0.8501,
+        "risk_reason": "Engagement decay at 98.7% — feature usage dropped sharply. Historically precedes churn by 6-8 weeks. $419825.7K ARR at risk.",
+        "top_kpi_signal": "Engagement Decay Index (EDI)",
+        "recommended_action": "Schedule QBR with CSM and product champion within 5 business days"
+      },
+      {
+        "customer_id": "63dddd34-2f03-4f87-b819-81207712303e",
+        "customer_name": "63dddd34-2f03-4f87-b819-81207712303e",
+        "arr": 377490283.2,
+        "risk_score": 0.9415,
+        "risk_reason": "Engagement decay at 107.0% — feature usage dropped sharply. Historically precedes churn by 6-8 weeks. $377490.3K ARR at risk.",
+        "top_kpi_signal": "Engagement Decay Index (EDI)",
+        "recommended_action": "Schedule QBR with CSM and product champion within 5 business days"
+      },
+      {
+        "customer_id": "27999d6d-b804-4055-a5a8-b719383ab827",
+        "customer_name": "27999d6d-b804-4055-a5a8-b719383ab827",
+        "arr": 387288961.92,
+        "risk_score": 0.8723,
+        "risk_reason": "Engagement decay at 105.8% — feature usage dropped sharply. Historically precedes churn by 6-8 weeks. $387289.0K ARR at risk.",
+        "top_kpi_signal": "Engagement Decay Index (EDI)",
+        "recommended_action": "Schedule QBR with CSM and product champion within 5 business days"
+      }
+    ],
+    "action_queue": [
+      {
+        "innovation": "DEAL_PRIORITY_SCORER",
+        "priority_rank": 1,
+        "title": "Close: 08ff0b1c-cf07-4ad7-819e-cdda59721f74",
+        "description": "Priority score 96/100. High-value deal — $582.1K ARR, strong close candidate. ARR: $582,148. Rep: REP-014.",
+        "entity_id": "08ff0b1c-cf07-4ad7-819e-cdda59721f74",
+        "entity_name": "08ff0b1c-cf07-4ad7-819e-cdda59721f74",
+        "metric_value": 96.25,
+        "metric_label": "Priority Score",
+        "cta_label": "View Deal →"
+      },
+      {
+        "innovation": "COMPETITIVE_CHURN_WARNING",
+        "priority_rank": 2,
+        "title": "Warn: 15f3a121-6249-4420-b887-865d83160434 — competitive churn risk",
+        "description": "Churn probability 98.0%. $43.5K ARR at risk. Engage CSM for immediate account review.",
+        "entity_id": "15f3a121-6249-4420-b887-865d83160434",
+        "entity_name": "15f3a121-6249-4420-b887-865d83160434",
+        "metric_value": 0.98,
+        "metric_label": "Churn Risk",
+        "cta_label": "View Customer →"
+      },
+      {
+        "innovation": "REVENUE_EXPANSION_RECOMMENDER",
+        "priority_rank": 3,
+        "title": "Expansion Recommender not yet available",
+        "description": "Upload all 5 data tables to unlock the Revenue Expansion Recommender.",
+        "entity_id": "N/A",
+        "entity_name": "N/A",
+        "metric_value": 0,
+        "metric_label": "Expansion ARR",
+        "cta_label": "Upload Attribution Data →"
+      }
+    ],
+    "root_cause_narrative": {
+      "narrative": "The single biggest revenue risk facing this portfolio is the extremely high churn probability of customer 15f3a121-6249-4420-b887-865d83160434, which has an ARR of $43.5K and a churn probability of 98.0%. This customer account is listed multiple times as the top churn risk, indicating a critical need for immediate attention to prevent loss of revenue. The leadership team should take immediate action within the next 7 days to proactively engage with this customer and address any issues contributing to the high churn risk, such as low adoption and high ticket volume, to mitigate potential revenue loss.",
+      "generated_at": "2026-05-18T23:58:34.479843+00:00",
+      "status": "success",
+      "top_risk_entity_ids": [
+        "15f3a121-6249-4420-b887-865d83160434",
+        "15f3a121-6249-4420-b887-865d83160434",
+        "15f3a121-6249-4420-b887-865d83160434"
+      ]
+    },
+    "overall_health_score": 76,
+    "active_model": "full",
+    "tables_loaded": [
+      "snapshots",
+      "product",
+      "sales",
+      "marketing"
+    ],
+    "is_fast_mode": false,
+    "data_availability": "ACTIVE"
+  },
+  "forecast": {
+    "segments": [],
+    "periods_ahead": 3
+  },
+  "personas": {
+    "personas": [],
+    "n_clusters": 0,
+    "silhouette_score": 0
+  }
+}

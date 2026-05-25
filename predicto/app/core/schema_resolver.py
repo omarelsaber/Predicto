@@ -101,7 +101,7 @@ def resolve_canonical_df(df: pd.DataFrame) -> pd.DataFrame:
             api_key = os.environ.get("GROQ_API_KEY")
             if api_key:
                 client = Groq(api_key=api_key)
-                target_keys = [k for k in CANONICAL_KEYS if k not in mapping.values()]
+                target_keys = [k for k in CANONICAL_KEYS + PASSTHROUGH_COLUMNS if k not in mapping.values()]
                 
                 if not target_keys:
                     log.debug("All canonical keys already mapped via fuzzy logic.")
@@ -110,15 +110,16 @@ def resolve_canonical_df(df: pd.DataFrame) -> pd.DataFrame:
                         f"You are a data engineering schema mapper.\n"
                         f"We need to map these raw user columns: {unresolved}\n"
                         f"To our core missing canonical columns: {target_keys}\n\n"
-                        f"Return ONLY a clean, valid JSON object mapping raw_column to canonical_column. "
+                        f"Return ONLY a valid JSON object mapping raw_column to canonical_column. "
                         f"If a column cannot be mapped, do not include it. No conversational text, no markdown code blocks."
                     )
                     response = client.chat.completions.create(
                         model="llama-3.3-70b-versatile",
                         messages=[{"role": "user", "content": prompt}],
+                        response_format={"type": "json_object"},
                         max_tokens=200,
                         temperature=0.1,
-                        timeout=3
+                        timeout=5
                     )
                     llm_text = response.choices[0].message.content.strip()
                     # تنظيف الكود لو الـ LLM حط مارك داون
@@ -127,7 +128,7 @@ def resolve_canonical_df(df: pd.DataFrame) -> pd.DataFrame:
                     llm_mapping = json.loads(llm_text)
                     
                     for k, v in llm_mapping.items():
-                        if k in unresolved and v in CANONICAL_KEYS:
+                        if k in unresolved and v in (CANONICAL_KEYS + PASSTHROUGH_COLUMNS):
                             mapping[k] = v
                             log.info(f"[Groq Schema Match] Mapped raw '{k}' -> canonical '{v}'")
         except Exception as exc:

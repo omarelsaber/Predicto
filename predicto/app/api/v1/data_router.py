@@ -453,47 +453,145 @@ async def score_deal(request: DealScoreRequest) -> DealScoreResponse:
 async def generate_report() -> HTMLResponse:
     """
     Generate an Executive Report as a printable HTML page.
-    Uses window.print() for PDF generation via the browser's built-in
-    print dialog, avoiding WeasyPrint dependency issues on Windows.
+    Uses V1 ML models if available, otherwise falls back to V2 cache data.
     """
-    _require_models_ready()
+    from app.core.cache import predicto_cache_v2
+
+    v1_ready = predicto_cache.models_ready()
+    v2_ready = predicto_cache_v2.is_ready and predicto_cache_v2.sales_df is not None
+
+    if not v1_ready and not v2_ready:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=ErrorResponse(
+                error="service_unavailable",
+                message="No data available. Please upload a CSV from the Data Workspace first.",
+                detail="Neither V1 models nor V2 cache are ready.",
+            ).model_dump(),
+        )
 
     try:
-        # Fetch current data from models
-        forecast_inputs = get_forecast_inputs(periods=3)
-        seg_input = get_segmentation_input()
-
-        # Build Forecast HTML snippet
         forecast_rows = ""
-        for i, f in enumerate(forecast_inputs, 1):
-            trend_color = "#10b981" if f.trend_direction == "up" else ("#ef4444" if f.trend_direction == "down" else "#eab308")
-            bg_color = f"{trend_color}15"
-            forecast_rows += f"""
-            <tr>
-                <td style="font-weight:600;color:#0f172a;">{f.segment}</td>
-                <td style="text-align:right;font-family:monospace;font-weight:600;">${f.yhat_next:,.0f}</td>
-                <td style="text-align:right;color:{trend_color};font-weight:700;">{f.pct_change*100:+.1f}%</td>
-                <td style="text-align:center;">
-                    <span class="badge" style="background:{bg_color};color:{trend_color};">{f.trend_direction.upper()}</span>
-                </td>
-            </tr>"""
-
-        # Build Persona HTML snippet
         persona_rows = ""
-        for p in seg_input.personas:
-            risk_color = "#ef4444" if p.churn_risk == "high" else ("#f59e0b" if p.churn_risk == "medium" else "#10b981")
-            bg_color = f"{risk_color}15"
-            persona_rows += f"""
-            <tr>
-                <td style="font-weight:600;color:#0f172a;">{p.persona_label}</td>
-                <td style="color:#64748b;">{p.segment}</td>
-                <td style="text-align:right;font-family:monospace;">${p.avg_deal_value:,.0f}</td>
-                <td style="text-align:right;font-weight:600;">{p.avg_margin*100:.1f}%</td>
-                <td style="text-align:center;">
-                    <span class="badge" style="background:{bg_color};color:{risk_color};">{p.churn_risk.upper()}</span>
-                </td>
-                <td style="color:#64748b;">{p.top_region}</td>
-            </tr>"""
+
+        if v1_ready:
+            # ── Use V1 ML models (full precision) ──
+            forecast_inputs = get_forecast_inputs(periods=3)
+            seg_input = get_segmentation_input()
+
+            for i, f in enumerate(forecast_inputs, 1):
+                trend_color = "#10b981" if f.trend_direction == "up" else ("#ef4444" if f.trend_direction == "down" else "#eab308")
+                bg_color = f"{trend_color}15"
+                forecast_rows += f"""
+                <tr>
+                    <td style="font-weight:600;color:#0f172a;">{f.segment}</td>
+                    <td style="text-align:right;font-family:monospace;font-weight:600;">${f.yhat_next:,.0f}</td>
+                    <td style="text-align:right;color:{trend_color};font-weight:700;">{f.pct_change*100:+.1f}%</td>
+                    <td style="text-align:center;">
+                        <span class="badge" style="background:{bg_color};color:{trend_color};">{f.trend_direction.upper()}</span>
+                    </td>
+                </tr>"""
+
+            for p in seg_input.personas:
+                risk_color = "#ef4444" if p.churn_risk == "high" else ("#f59e0b" if p.churn_risk == "medium" else "#10b981")
+                bg_color = f"{risk_color}15"
+                persona_rows += f"""
+                <tr>
+                    <td style="font-weight:600;color:#0f172a;">{p.persona_label}</td>
+                    <td style="color:#64748b;">{p.segment}</td>
+                    <td style="text-align:right;font-family:monospace;">${p.avg_deal_value:,.0f}</td>
+                    <td style="text-align:right;font-weight:600;">{p.avg_margin*100:.1f}%</td>
+                    <td style="text-align:center;">
+                        <span class="badge" style="background:{bg_color};color:{risk_color};">{p.churn_risk.upper()}</span>
+                    </td>
+                    <td style="color:#64748b;">{p.top_region}</td>
+                </tr>"""
+
+            n_segments = len(forecast_inputs)
+            n_clusters = seg_input.n_clusters
+        else:
+            # ── Fallback: build report from V2 cache ──
+            sales_df = predicto_cache_v2.sales_df
+            eng_df = predicto_cache_v2.engineered_df
+
+            # Build segment summary from sales data
+            seg_col = None
+            for col in ("segment", "Segment"):
+                if col in sales_df.columns:
+                    seg_col = col
+                    break
+
+            if seg_col:
+                segments = sales_df.groupby(seg_col).agg(
+                    revenue=pd.NamedAgg(column="arr" if "arr" in sales_df.columns else "sales" if "sales" in sales_df.columns else sales_df.select_dtypes("number").columns[0], aggfunc="sum"),
+                    count=pd.NamedAgg(column=seg_col, aggfunc="count"),
+                ).reset_index()
+
+                for _, row in segments.iterrows():
+                    rev = float(row["revenue"])
+                    forecast_rows += f"""
+                    <tr>
+                        <td style="font-weight:600;color:#0f172a;">{row[seg_col]}</td>
+                        <td style="text-align:right;font-family:monospace;font-weight:600;">${rev:,.0f}</td>
+                        <td style="text-align:right;color:#64748b;font-weight:700;">—</td>
+                        <td style="text-align:center;">
+                            <span class="badge" style="background:#6366f115;color:#6366f1;">V2 DATA</span>
+                        </td>
+                    </tr>"""
+                n_segments = len(segments)
+            else:
+                n_segments = 0
+
+            # Build persona summary from V2 data
+            region_col = None
+            for col in ("region", "Region"):
+                if col in sales_df.columns:
+                    region_col = col
+                    break
+
+            margin_col = None
+            for col in ("margin_rate", "Margin_Rate", "profit"):
+                if col in sales_df.columns:
+                    margin_col = col
+                    break
+
+            if seg_col and region_col:
+                personas = sales_df.groupby(seg_col).agg(
+                    avg_deal=pd.NamedAgg(column="arr" if "arr" in sales_df.columns else "sales" if "sales" in sales_df.columns else sales_df.select_dtypes("number").columns[0], aggfunc="mean"),
+                    count=pd.NamedAgg(column=seg_col, aggfunc="count"),
+                    top_region=pd.NamedAgg(column=region_col, aggfunc=lambda x: x.mode().iloc[0] if len(x.mode()) > 0 else "Unknown"),
+                ).reset_index()
+
+                if margin_col:
+                    margins = sales_df.groupby(seg_col)[margin_col].mean()
+                    personas = personas.join(margins.rename("avg_margin"), on=seg_col)
+                else:
+                    personas["avg_margin"] = 0.0
+
+                for _, row in personas.iterrows():
+                    avg_deal = float(row["avg_deal"])
+                    avg_margin = float(row.get("avg_margin", 0))
+                    margin_pct = avg_margin * 100 if avg_margin < 1 else avg_margin
+                    risk = "low" if avg_margin > 0.3 else ("medium" if avg_margin > 0.15 else "high")
+                    risk_color = "#ef4444" if risk == "high" else ("#f59e0b" if risk == "medium" else "#10b981")
+                    bg_color = f"{risk_color}15"
+                    persona_rows += f"""
+                    <tr>
+                        <td style="font-weight:600;color:#0f172a;">{row[seg_col]} Cluster</td>
+                        <td style="color:#64748b;">{row[seg_col]}</td>
+                        <td style="text-align:right;font-family:monospace;">${avg_deal:,.0f}</td>
+                        <td style="text-align:right;font-weight:600;">{margin_pct:.1f}%</td>
+                        <td style="text-align:center;">
+                            <span class="badge" style="background:{bg_color};color:{risk_color};">{risk.upper()}</span>
+                        </td>
+                        <td style="color:#64748b;">{row['top_region']}</td>
+                    </tr>"""
+
+                n_clusters = len(personas)
+            else:
+                n_clusters = 0
+
+        data_source = "ML Models (V1)" if v1_ready else "V2 Aggregated Data"
 
         # Build Full HTML page with auto-print
         html_content = f"""<!DOCTYPE html>
@@ -537,10 +635,6 @@ async def generate_report() -> HTMLResponse:
             align-items: center;
             gap: 14px;
         }}
-        .brand img {{
-            height: 36px;
-            width: auto;
-        }}
         .brand h1 {{
             font-size: 26px;
             font-weight: 800;
@@ -565,6 +659,14 @@ async def generate_report() -> HTMLResponse:
             color: #0f172a;
             font-size: 14px;
             font-weight: 600;
+        }}
+        .report-meta .source {{
+            color: #6366f1;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-top: 4px;
         }}
         .section {{ margin-bottom: 50px; }}
         .section h3 {{
@@ -669,27 +771,27 @@ async def generate_report() -> HTMLResponse:
     <div class="container">
         <div class="header">
             <div class="brand">
-                <img src="http://localhost:5173/predicto-logo.png" alt="" onerror="this.style.display='none'">
                 <h1>Predicto<span>Hub</span></h1>
             </div>
             <div class="report-meta">
                 <h2>Executive Intelligence Report</h2>
                 <div class="date">{time.strftime('%B %d, %Y')}</div>
+                <div class="source">Source: {data_source}</div>
             </div>
         </div>
 
         <div class="section">
-            <h3>Revenue Forecast Analysis</h3>
+            <h3>Revenue {"Forecast" if v1_ready else "Summary"} Analysis</h3>
             <table>
                 <thead>
                     <tr>
                         <th>Segment</th>
-                        <th style="text-align:right;">Projected Revenue</th>
-                        <th style="text-align:right;">Growth</th>
-                        <th style="text-align:center;">Trend Confidence</th>
+                        <th style="text-align:right;">{"Projected Revenue" if v1_ready else "Total Revenue"}</th>
+                        <th style="text-align:right;">{"Growth" if v1_ready else "Trend"}</th>
+                        <th style="text-align:center;">{"Trend Confidence" if v1_ready else "Source"}</th>
                     </tr>
                 </thead>
-                <tbody>{forecast_rows}</tbody>
+                <tbody>{forecast_rows if forecast_rows else '<tr><td colspan="4" style="text-align:center;color:#94a3b8;padding:30px;">No segment data available</td></tr>'}</tbody>
             </table>
         </div>
 
@@ -706,12 +808,12 @@ async def generate_report() -> HTMLResponse:
                         <th>Core Region</th>
                     </tr>
                 </thead>
-                <tbody>{persona_rows}</tbody>
+                <tbody>{persona_rows if persona_rows else '<tr><td colspan="6" style="text-align:center;color:#94a3b8;padding:30px;">No persona data available</td></tr>'}</tbody>
             </table>
         </div>
 
         <div class="footer">
-            CONFIDENTIAL &bull; Generated by Predicto Intelligence Pipeline &bull; {len(forecast_inputs)} segments analyzed &bull; {seg_input.n_clusters} clusters identified
+            CONFIDENTIAL &bull; Generated by Predicto Intelligence Pipeline &bull; {n_segments} segments analyzed &bull; {n_clusters} clusters identified &bull; Data source: {data_source}
         </div>
     </div>
 

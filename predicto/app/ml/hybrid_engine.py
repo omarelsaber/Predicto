@@ -303,11 +303,20 @@ def engineer_revops_features(tables: dict[str, pd.DataFrame]) -> pd.DataFrame:
         )
 
         # KPI 7: Rep Segment Fit Score
-        won_sales["rep_spec"] = won_sales["sales_rep"].map(REP_SPEC).fillna("SMB")
+        # Accept any common alias for the rep column
+        _rep_col = next(
+            (c for c in ("sales_rep", "sales_rep_id", "rep_id", "rep", "owner") if c in won_sales.columns),
+            None,
+        )
+        if _rep_col:
+            won_sales["rep_spec"] = won_sales[_rep_col].map(REP_SPEC).fillna("SMB")
+        else:
+            won_sales["rep_spec"] = "SMB"
         won_sales["rsfs"] = (
             np.where(won_sales["rep_spec"] == won_sales["segment"], 1.0, 0.78)
             * (1 - won_sales["discount_percentage"].fillna(0.10) / 0.50)
         )
+
 
         sales_slim = won_sales[[
             "customer_id", "discount_percentage", "segment",

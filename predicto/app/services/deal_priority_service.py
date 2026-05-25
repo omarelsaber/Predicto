@@ -301,6 +301,20 @@ def score_deals() -> DealPriorityResponse:
         )
 
     sales = cache.sales_df.copy()
+
+    # Attempt to resolve missing customer names using snapshots_df
+    if cache.snapshots_df is not None and not cache.snapshots_df.empty:
+        c_name = _detect_col(cache.snapshots_df, ["customer_name", "company_name", "account_name", "name"])
+        s_cid = _detect_col(sales, ["customer_id", "account_id", "cust_id"])
+        c_cid = _detect_col(cache.snapshots_df, ["customer_id", "account_id", "cust_id"])
+        if c_name and s_cid and c_cid:
+            mapping = cache.snapshots_df.drop_duplicates(subset=[c_cid]).set_index(c_cid)[c_name].to_dict()
+            s_name = _detect_col(sales, ["deal_name", "company_name", "account_name", "customer_name", "name"])
+            if not s_name:
+                sales["customer_name"] = sales[s_cid].map(mapping)
+            else:
+                sales[s_name] = sales[s_name].fillna(sales[s_cid].map(mapping))
+
     cols  = _resolve_sales_columns(sales)
     log.debug("Resolved columns: %s", {k: v for k, v in cols.items() if v})
 
