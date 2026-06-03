@@ -22,6 +22,7 @@
  */
 
 import React, { useState, useMemo, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { ScatterChart, Card } from "@tremor/react";
 import {
   ChevronDown,
@@ -498,6 +499,7 @@ interface DropdownProps {
 }
 
 const WarRoomDropdown: React.FC<DropdownProps> = ({ label, value, options, onChange, width = 260 }) => {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const selected = options.find(o => o.id === value);
 
@@ -521,10 +523,10 @@ const WarRoomDropdown: React.FC<DropdownProps> = ({ label, value, options, onCha
       >
         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 1, minWidth: 0 }}>
           <span style={{ fontSize: 10, color: "var(--p-ink-tertiary)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.4px" }}>
-            {label}
+            {t(label as any, { defaultValue: label })}
           </span>
           <span style={{ fontSize: 13, fontWeight: 500, color: "var(--p-ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>
-            {selected?.label ?? "—"}
+            {t(`warroom.options.${selected?.id}` as any, { defaultValue: selected?.label ?? "—" })}
           </span>
         </div>
         <ChevronDown
@@ -562,14 +564,16 @@ const WarRoomDropdown: React.FC<DropdownProps> = ({ label, value, options, onCha
                 background:   opt.id === value ? "rgba(94,106,210,0.10)" : "transparent",
                 border:       "none",
                 cursor:       "pointer",
-                textAlign:    "left",
+                textAlign:    "start",
                 transition:   "background 100ms ease",
               }}
               onMouseEnter={e => (e.currentTarget.style.background = opt.id === value ? "rgba(94,106,210,0.14)" : "rgba(255,255,255,0.04)")}
               onMouseLeave={e => (e.currentTarget.style.background = opt.id === value ? "rgba(94,106,210,0.10)" : "transparent")}
             >
               {opt.id === value && <CheckCircle2 size={11} color="var(--p-primary-hover)" />}
-              <span style={{ fontSize: 13, color: opt.id === value ? "var(--p-ink)" : "var(--p-ink-muted)" }}>{opt.label}</span>
+              <span style={{ fontSize: 13, color: opt.id === value ? "var(--p-ink)" : "var(--p-ink-muted)" }}>
+                {t(`warroom.options.${opt.id}` as any, { defaultValue: opt.label })}
+              </span>
             </button>
           ))}
         </div>
@@ -583,6 +587,7 @@ const WarRoomDropdown: React.FC<DropdownProps> = ({ label, value, options, onCha
 ============================================================================= */
 
 const NashScoreRing: React.FC<{ score: number; nashPoint: { discount: number; winProb: number } }> = ({ score, nashPoint }) => {
+  const { t } = useTranslation();
   const radius   = 38;
   const stroke   = 5;
   const circ     = 2 * Math.PI * radius;
@@ -643,18 +648,18 @@ const NashScoreRing: React.FC<{ score: number; nashPoint: { discount: number; wi
       <div>
         <div style={{ fontSize: 11, fontWeight: 500, color: "var(--p-primary-hover)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: 4, display: "flex", alignItems: "center", gap: 5 }}>
           <Sparkles size={10} />
-          Nash Equilibrium Score
+          {t("warroom.nashEquilibriumScore")}
         </div>
         <div style={{ fontSize: 22, fontWeight: 600, fontFamily: "var(--font-display)", color: "var(--p-ink)", letterSpacing: "-0.5px", marginBottom: 5 }}>
-          {score >= 65 ? "Optimal Position" : score >= 45 ? "Sub-optimal" : "Unfavourable"}
+          {score >= 65 ? t("warroom.optimalPosition") : score >= 45 ? t("warroom.subOptimal") : t("warroom.unfavourable")}
         </div>
         <div style={{ fontSize: 11, color: "var(--p-ink-tertiary)", lineHeight: 1.6, maxWidth: 210 }}>
-          Equilibrium at <span style={{ color: "var(--p-ink-muted)", fontFamily: "var(--font-mono)" }}>{nashPoint.discount}% disc · {nashPoint.winProb}% win</span>.
+          {t("warroom.equilibriumAt", { discount: nashPoint.discount, winProb: nashPoint.winProb })}
           {score >= 65
-            ? " You're above the strategic threshold. Preserve margin."
+            ? t("warroom.equilibriumAbove")
             : score >= 45
-            ? " Discount creep detected. Rebalance before proposal."
-            : " Significant margin erosion. Immediate correction recommended."}
+            ? t("warroom.equilibriumDetect")
+            : t("warroom.equilibriumErosion")}
         </div>
       </div>
     </div>
@@ -673,6 +678,7 @@ interface MoveCardProps {
 }
 
 const MoveCard: React.FC<MoveCardProps> = ({ card, rank, active, onToggle }) => {
+  const { t } = useTranslation();
   const ev         = formatArrK(card.expectedValue);
   const effortColor  = getEffortColor(card.effort);
   const urgencyColor = getUrgencyColor(card.urgency);
@@ -759,7 +765,7 @@ const MoveCard: React.FC<MoveCardProps> = ({ card, rank, active, onToggle }) => 
           {/* Title */}
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: "var(--p-ink)", letterSpacing: "-0.2px", lineHeight: 1.3 }}>
-              {card.title}
+              {t(`warroom.moves.${card.id}.title` as any, { defaultValue: card.title })}
             </div>
             <div
               style={{
@@ -779,7 +785,7 @@ const MoveCard: React.FC<MoveCardProps> = ({ card, rank, active, onToggle }) => 
                 textTransform: "uppercase",
               }}
             >
-              {card.gameTheoryMove}
+              {t(`warroom.moves.strategyTypes.${card.gameTheoryMove}` as any, { defaultValue: card.gameTheoryMove })}
             </div>
           </div>
         </div>
@@ -791,7 +797,7 @@ const MoveCard: React.FC<MoveCardProps> = ({ card, rank, active, onToggle }) => 
               {ev}
             </div>
             <div style={{ fontSize: 9, color: "var(--p-ink-tertiary)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.3px", marginTop: 1 }}>
-              Exp. Value
+              {t("warroom.expectedValue")}
             </div>
           </div>
           <ChevronRight
@@ -820,7 +826,7 @@ const MoveCard: React.FC<MoveCardProps> = ({ card, rank, active, onToggle }) => 
           }}
         >
           <Target size={9} color="var(--p-ink-tertiary)" />
-          {card.successProbability}% success
+          {t("warroom.success", { pct: card.successProbability })}
         </span>
         {/* Effort */}
         <span
@@ -838,7 +844,7 @@ const MoveCard: React.FC<MoveCardProps> = ({ card, rank, active, onToggle }) => 
           }}
         >
           <Activity size={9} />
-          {card.effort} effort
+          {t("warroom.effort", { level: t(`warroom.riskLevels.${card.effort}` as any, { defaultValue: card.effort }) })}
         </span>
         {/* Urgency */}
         <span
@@ -856,7 +862,7 @@ const MoveCard: React.FC<MoveCardProps> = ({ card, rank, active, onToggle }) => 
           }}
         >
           <Zap size={9} />
-          {card.urgency}
+          {t(`warroom.urgency.${card.urgency}` as any, { defaultValue: card.urgency })}
         </span>
       </div>
 
@@ -873,7 +879,7 @@ const MoveCard: React.FC<MoveCardProps> = ({ card, rank, active, onToggle }) => 
           }}
         >
           <p style={{ margin: 0, fontSize: 12, color: "var(--p-ink-muted)", lineHeight: 1.6 }}>
-            {card.description}
+            {t(`warroom.moves.${card.id}.description` as any, { defaultValue: card.description })}
           </p>
 
           {/* Rationale block */}
@@ -890,7 +896,7 @@ const MoveCard: React.FC<MoveCardProps> = ({ card, rank, active, onToggle }) => 
           >
             <Info size={11} color="var(--p-ink-tertiary)" style={{ marginTop: 2, flexShrink: 0 }} />
             <p style={{ margin: 0, fontSize: 11, color: "var(--p-ink-subtle)", lineHeight: 1.6 }}>
-              {card.rationale}
+              {t(`warroom.moves.${card.id}.rationale` as any, { defaultValue: card.rationale })}
             </p>
           </div>
 
@@ -901,13 +907,15 @@ const MoveCard: React.FC<MoveCardProps> = ({ card, rank, active, onToggle }) => 
             style={{ fontSize: 12, minHeight: 32, height: 32, padding: "5px 14px", alignSelf: "flex-start", display: "flex", alignItems: "center", gap: 5 }}
           >
             <ArrowUpRight size={12} />
-            Execute Move
+            {t("warroom.executeMove")}
           </button>
         </div>
       )}
     </div>
   );
 };
+
+
 
 /* =============================================================================
    SUB-COMPONENT: Trade-Off Slider
@@ -1210,6 +1218,7 @@ const CompetitorIntelPanel: React.FC<{ profile: CompetitorProfile }> = ({ profil
 ============================================================================= */
 
 const WarRoomView: React.FC = () => {
+  const { t } = useTranslation();
   // ── State ──────────────────────────────────────────────────────────────────
   const [selectedDealId,       setSelectedDealId]       = useState("D-1187");
   const [selectedCompetitorId, setSelectedCompetitorId] = useState("salesforce");
@@ -1311,7 +1320,7 @@ const WarRoomView: React.FC = () => {
                   margin:        0,
                 }}
               >
-                Competitive War Room
+                {t("warroom.title")}
               </h1>
               <span
                 style={{
@@ -1326,25 +1335,25 @@ const WarRoomView: React.FC = () => {
                   letterSpacing: "0.2px",
                 }}
               >
-                Game Theory Engine v2
+                {t("warroom.engineVersion")}
               </span>
             </div>
             <p style={{ margin: 0, fontSize: 13, color: "var(--p-ink-tertiary)" }}>
-              Pareto frontier analysis · Nash equilibrium scoring · Move advisor for {currentDeal?.customer ?? "—"}
+              {t("warroom.subtitle", { customer: currentDeal?.customer ?? "—" })}
             </p>
           </div>
 
           {/* Dropdowns */}
           <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
             <WarRoomDropdown
-              label="Active Deal"
+              label={t("warroom.activeDeal")}
               value={selectedDealId}
               options={DEAL_OPTIONS}
               onChange={handleDealChange}
               width={280}
             />
             <WarRoomDropdown
-              label="Competitor"
+              label={t("warroom.competitor")}
               value={selectedCompetitorId}
               options={COMPETITOR_OPTIONS}
               onChange={setSelectedCompetitorId}
@@ -1355,7 +1364,7 @@ const WarRoomView: React.FC = () => {
               style={{ fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}
             >
               <Zap size={13} />
-              Run Playbook
+              {t("warroom.runPlaybook")}
             </button>
           </div>
         </div>
@@ -1372,12 +1381,12 @@ const WarRoomView: React.FC = () => {
             }}
           >
             {[
-              { label: "Deal", value: currentDeal.id, icon: <Crosshair size={10} /> },
-              { label: "ARR",  value: `$${(currentDeal.arr / 1000).toFixed(0)}K`, icon: <DollarSign size={10} /> },
-              { label: "Stage", value: currentDeal.stage, icon: <Activity size={10} /> },
-              { label: "Current Discount", value: `${currentDeal.discountPct}%`, icon: <Percent size={10} /> },
-              { label: "Win Probability",  value: `${currentDeal.winProbability}%`, icon: <Target size={10} /> },
-              { label: "Gross Margin",     value: `${currentDeal.margin}%`, icon: <TrendingUp size={10} /> },
+              { label: t("pipeline.deal"), value: currentDeal.id, icon: <Crosshair size={10} /> },
+              { label: t("pipeline.arr"),  value: `$${(currentDeal.arr / 1000).toFixed(0)}K`, icon: <DollarSign size={10} /> },
+              { label: t("pipeline.stage"), value: t(`warroom.stages.${currentDeal.stage}` as any, { defaultValue: currentDeal.stage }), icon: <Activity size={10} /> },
+              { label: t("warroom.currentDiscount", { defaultValue: "Current Discount" }), value: `${currentDeal.discountPct}%`, icon: <Percent size={10} /> },
+              { label: t("pipeline.winProb"),  value: `${currentDeal.winProbability}%`, icon: <Target size={10} /> },
+              { label: t("pipeline.margin", { defaultValue: "Gross Margin" }),     value: `${currentDeal.margin}%`, icon: <TrendingUp size={10} /> },
             ].map((item, i) => (
               <React.Fragment key={item.label}>
                 <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
@@ -1444,23 +1453,25 @@ const WarRoomView: React.FC = () => {
                 <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
                   <BarChart3 size={14} color="var(--p-primary)" />
                   <span style={{ fontSize: 13, fontWeight: 600, color: "var(--p-ink)", letterSpacing: "-0.2px" }}>
-                    Pareto Frontier — Discount% vs Win Probability
+                    {t("warroom.chart.title")}
                   </span>
                 </div>
                 <div style={{ fontSize: 11, color: "var(--p-ink-tertiary)", marginTop: 3 }}>
-                  {competitorDeals.filter(d => d.outcome === "won").length} Won &nbsp;·&nbsp;
-                  {competitorDeals.filter(d => d.outcome === "lost").length} Lost &nbsp;·&nbsp;
-                  vs {competitorProfile.name} &nbsp;·&nbsp; bubble size = ARR
+                  {t("warroom.chart.subtitle", {
+                    won: competitorDeals.filter(d => d.outcome === "won").length,
+                    lost: competitorDeals.filter(d => d.outcome === "lost").length,
+                    competitor: competitorProfile.name
+                  })}
                 </div>
               </div>
 
               {/* Legend */}
               <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
                 {[
-                  { label: "Won",             color: "#4ade80" },
-                  { label: "Lost",            color: "#f87171" },
-                  { label: "Pareto Frontier", color: "var(--p-primary-hover)" },
-                  { label: "You Are Here",    color: "#fbbf24" },
+                  { label: t("warroom.chart.won"),             color: "#4ade80" },
+                  { label: t("warroom.chart.lost"),            color: "#f87171" },
+                  { label: t("warroom.chart.paretoFrontier"), color: "var(--p-primary-hover)" },
+                  { label: t("warroom.chart.youAreHere"),    color: "#fbbf24" },
                 ].map(l => (
                   <div key={l.label} style={{ display: "flex", alignItems: "center", gap: 5 }}>
                     <div style={{ width: 7, height: 7, borderRadius: "50%", background: l.color, boxShadow: `0 0 5px ${l.color}` }} />
@@ -1471,7 +1482,7 @@ const WarRoomView: React.FC = () => {
             </div>
 
             {/* Tremor ScatterChart */}
-            <div style={{ padding: "4px 16px 12px" }}>
+            <div dir="ltr" style={{ padding: "4px 16px 12px" }}>
               <ScatterChart
                 className="h-80"
                 data={scatterSeries}
@@ -1483,12 +1494,12 @@ const WarRoomView: React.FC = () => {
                 showLegend={false}
                 showAnimation={true}
                 valueFormatter={{
-                  x:    (v: number) => `Discount: ${v}%`,
-                  y:    (v: number) => `Win Prob: ${v.toFixed(1)}%`,
-                  size: (v: number) => `ARR: $${(v * 60).toFixed(0)}K`,
+                  x:    (v: number) => t("warroom.chart.discountFormatter", { pct: v }),
+                  y:    (v: number) => t("warroom.chart.winProbFormatter", { pct: v.toFixed(1) }),
+                  size: (v: number) => t("warroom.chart.arrFormatter", { value: (v * 60).toFixed(0) }),
                 }}
-                xAxisLabel="Discount (%)"
-                yAxisLabel="Win Probability (%)"
+                xAxisLabel={t("warroom.chart.discountLabel")}
+                yAxisLabel={t("warroom.chart.winProbabilityLabel")}
                 autoMinXValue={true}
                 autoMinYValue={true}
               />
@@ -1517,28 +1528,28 @@ const WarRoomView: React.FC = () => {
                   }}
                 />
                 <span style={{ fontSize: 11, color: "var(--p-ink-muted)" }}>
-                  <strong style={{ fontFamily: "var(--font-mono)" }}>You are here</strong> —{" "}
-                  {currentDeal?.customer ?? "—"} at{" "}
-                  <span style={{ fontFamily: "var(--font-mono)" }}>
-                    {currentDeal?.discountPct ?? "—"}% discount,{" "}
-                    {currentDeal?.winProbability ?? "—"}% win prob
-                  </span>
+                  {t("warroom.chart.youAreHereAnnotation", {
+                    customer: currentDeal?.customer ?? "—",
+                    discount: currentDeal?.discountPct ?? "—",
+                    winProb: currentDeal?.winProbability ?? "—"
+                  })}
                 </span>
               </div>
               <span style={{ width: 1, height: 12, background: "var(--p-hairline-strong)", flexShrink: 0 }} />
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <div style={{ width: 16, height: 2, background: "var(--p-primary-hover)", borderRadius: 2 }} />
                 <span style={{ fontSize: 11, color: "var(--p-ink-muted)" }}>
-                  Pareto frontier — efficient boundary (max win prob per discount point)
+                  {t("warroom.chart.paretoAnnotation")}
                 </span>
               </div>
               <span style={{ width: 1, height: 12, background: "var(--p-hairline-strong)", flexShrink: 0 }} />
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <Star size={10} color="#fbbf24" />
                 <span style={{ fontSize: 11, color: "var(--p-ink-muted)" }}>
-                  Nash point: <span style={{ fontFamily: "var(--font-mono)", color: "var(--p-ink-muted)" }}>
-                    {competitorProfile.nashPoint.discount}% disc · {competitorProfile.nashPoint.winProb}% win
-                  </span>
+                  {t("warroom.chart.nashAnnotation", {
+                    discount: competitorProfile.nashPoint.discount,
+                    winProb: competitorProfile.nashPoint.winProb
+                  })}
                 </span>
               </div>
             </div>

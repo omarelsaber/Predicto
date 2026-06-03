@@ -115,6 +115,9 @@ COLUMN_ALIASES: dict[str, str] = {
     "id":               "Order ID",
     "invoice_id":       "Order ID",
     "invoice id":       "Order ID",
+    "deal_id":          "Order ID",
+    "dealid":           "Order ID",
+    "deal id":          "Order ID",
 
     # ── Order Date aliases ────────────────────────────────────────────────
     "order_date":       "Order Date",
@@ -129,6 +132,12 @@ COLUMN_ALIASES: dict[str, str] = {
     "createdat":        "Order Date",
     "created at":       "Order Date",
     "timestamp":        "Order Date",
+    "close_date":       "Order Date",
+    "closedate":        "Order Date",
+    "close date":       "Order Date",
+    "contract_start_date": "Order Date",
+    "contractstartdate":   "Order Date",
+    "contract start date": "Order Date",
 
     # ── Customer aliases ──────────────────────────────────────────────────
     "customer":         "Customer",
@@ -144,6 +153,9 @@ COLUMN_ALIASES: dict[str, str] = {
     "firstname":        "Customer",
     "first name":       "Customer",
     "name":             "Customer",
+    "customer_id":      "Customer",
+    "customerid":       "Customer",
+    "customer id":      "Customer",
 
     # ── Segment aliases ───────────────────────────────────────────────────
     "segment":          "Segment",
@@ -211,6 +223,9 @@ COLUMN_ALIASES: dict[str, str] = {
     "discount_pct":     "Discount",
     "discount_percent": "Discount",
     "disc":             "Discount",
+    "discount_percentage": "Discount",
+    "discountpercentage":  "Discount",
+    "discount percentage": "Discount",
 
     # ── Profit aliases (optional column) ──────────────────────────────────
     "profit":           "Profit",

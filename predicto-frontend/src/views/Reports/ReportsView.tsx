@@ -7,6 +7,8 @@
  */
 
 import React, { useState, useCallback } from "react";
+import { useTranslation } from "react-i18next";
+import { useUserName, getUserName } from "@/store/useUserStore";
 import {
   FileBarChart,
   Download,
@@ -210,11 +212,61 @@ const RECENT_REPORTS: RecentReport[] = [
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8001";
 
+const TITLE_TO_ID_MAP: Record<string, string> = {
+  "Executive Intelligence Report": "exec-intelligence",
+  "Revenue Forecast Summary": "revenue-forecast",
+  "Churn Risk Audit": "churn-risk-audit",
+  "Customer Persona Analysis": "persona-clustering",
+  "Portfolio Margin Health": "margin-health",
+  "Pipeline Velocity Report": "pipeline-velocity",
+  "Competitive Intelligence Briefing": "competitive-intel",
+  "Causal Impact Assessment": "causal-impact"
+};
+
+const getReportTitleTranslation = (title: string, t: any) => {
+  const id = TITLE_TO_ID_MAP[title];
+  return id ? t(`reports.templates.${id}.title`) : title;
+};
+
+const getGeneratedAtTranslation = (val: string, t: any) => {
+  if (val.startsWith("Today,")) {
+    const time = val.replace("Today, ", "");
+    return t("reports.table.values.today", { time });
+  }
+  if (val.startsWith("Yesterday,")) {
+    const time = val.replace("Yesterday, ", "");
+    return t("reports.table.values.yesterday", { time });
+  }
+  return t(`reports.dates.${val}`, { defaultValue: val });
+};
+
+const getGeneratedByTranslation = (val: string, t: any, userName?: string) => {
+  if (val === "System (Scheduled)") {
+    return t("reports.table.values.systemScheduled");
+  }
+  if (val === "Alex Rivera") {
+    return userName || getUserName() || "Alex Rivera";
+  }
+  return val;
+};
+
+const getLastGeneratedTranslation = (val: string | undefined, t: any) => {
+  if (!val) return "";
+  const key = val.replace(/\s+/g, "_");
+  return t(`reports.lastGenerated.${key}`, { defaultValue: val });
+};
+
+const getEstimatedTimeTranslation = (val: string, t: any) => {
+  const num = val.replace(/[^0-9]/g, "");
+  return t("reports.estimatedTime", { time: num });
+};
+
 /* =============================================================================
    SUB-COMPONENTS
 ============================================================================= */
 
 const CategoryPill: React.FC<{ category: ReportCategory }> = ({ category }) => {
+  const { t } = useTranslation();
   const cfg = CATEGORY_CONFIG[category];
   return (
     <span style={{
@@ -225,29 +277,34 @@ const CategoryPill: React.FC<{ category: ReportCategory }> = ({ category }) => {
       fontFamily: "var(--font-mono)", textTransform: "uppercase",
       letterSpacing: "0.3px",
     }}>
-      {cfg.label}
+      {t("reports.categories." + category)}
     </span>
   );
 };
 
-const TagPill: React.FC<{ label: string }> = ({ label }) => (
-  <span style={{
-    display: "inline-flex", alignItems: "center",
-    padding: "1px 6px", borderRadius: "var(--radius-pill)",
-    background: "rgba(255,255,255,0.04)",
-    border: "1px solid var(--p-hairline)",
-    fontSize: 9, color: "var(--p-ink-tertiary)",
-    fontFamily: "var(--font-mono)",
-  }}>
-    {label}
-  </span>
-);
+const TagPill: React.FC<{ label: string }> = ({ label }) => {
+  const { t } = useTranslation();
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center",
+      padding: "1px 6px", borderRadius: "var(--radius-pill)",
+      background: "rgba(255,255,255,0.04)",
+      border: "1px solid var(--p-hairline)",
+      fontSize: 9, color: "var(--p-ink-tertiary)",
+      fontFamily: "var(--font-mono)",
+    }}>
+      {t("reports.tags." + label, { defaultValue: label })}
+    </span>
+  );
+};
 
 /* =============================================================================
    MAIN COMPONENT
 ============================================================================= */
 
 const ReportsView: React.FC = () => {
+  const { t } = useTranslation();
+  const userName = useUserName();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<ReportCategory | "all">("all");
   const [generating, setGenerating] = useState<string | null>(null);
@@ -277,18 +334,18 @@ const ReportsView: React.FC = () => {
       if (res.ok) {
         // Open in a new tab
         window.open(`${API_BASE}/api/v1/report`, "_blank");
-        showToast("Executive Report opened in new tab", "success");
+        showToast(t("reports.toast.opened"), "success");
       } else if (res.status === 503) {
-        showToast("Models not ready — please upload data from Data Workspace first, then retry.", "error");
+        showToast(t("reports.toast.notReady"), "error");
       } else {
-        showToast(`Report generation failed (HTTP ${res.status})`, "error");
+        showToast(t("reports.toast.failed", { status: res.status }), "error");
       }
     } catch {
-      showToast("Cannot reach backend server. Make sure the API is running.", "error");
+      showToast(t("reports.toast.unreachable"), "error");
     } finally {
       setGenerating(null);
     }
-  }, [showToast]);
+  }, [showToast, t]);
 
   const handleGenerate = useCallback((template: ReportTemplate) => {
     if (template.id === "exec-intelligence") {
@@ -296,9 +353,10 @@ const ReportsView: React.FC = () => {
       return;
     }
     setGenerating(template.id);
-    showToast(`"${template.title}" — coming soon. Currently only Executive Report is wired to the backend.`, "info");
+    const translatedTitle = t(`reports.templates.${template.id}.title`, { defaultValue: template.title });
+    showToast(t("reports.toast.comingSoon", { title: translatedTitle }), "info");
     setTimeout(() => setGenerating(null), 2000);
-  }, [openExecReport, showToast]);
+  }, [openExecReport, showToast, t]);
 
   const filteredTemplates = REPORT_TEMPLATES.filter(t => {
     if (selectedCategory !== "all" && t.category !== selectedCategory) return false;
@@ -398,7 +456,7 @@ const ReportsView: React.FC = () => {
               <FileBarChart size={15} color="var(--p-primary-hover)" strokeWidth={1.6} />
             </div>
             <h1 className="t-headline" style={{ color: "var(--p-ink)", margin: 0 }}>
-              Reports
+              {t("reports.title")}
             </h1>
             <span style={{
               display: "inline-flex", alignItems: "center", gap: 4,
@@ -408,14 +466,14 @@ const ReportsView: React.FC = () => {
               textTransform: "uppercase", color: "#4ade80",
               fontFamily: "var(--font-mono)",
             }}>
-              {REPORT_TEMPLATES.length} templates
+              {t("reports.templatesCount", { count: REPORT_TEMPLATES.length })}
             </span>
           </div>
           <p style={{
             fontSize: 13, color: "var(--p-ink-tertiary)", margin: 0,
             fontFamily: "var(--font-body)", lineHeight: 1.5,
           }}>
-            Generate, download, and schedule executive reports from your intelligence pipeline.
+            {t("reports.subtitle")}
           </p>
         </div>
 
@@ -439,9 +497,9 @@ const ReportsView: React.FC = () => {
           onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "0 2px 12px rgba(94,106,210,0.35)"; }}
         >
           {generating === "exec-intelligence" ? (
-            <><RefreshCw size={14} style={{ animation: "spin 0.9s linear infinite" }} /> Checking…</>
+            <><RefreshCw size={14} style={{ animation: "spin 0.9s linear infinite" }} /> {t("reports.checking")}</>
           ) : (
-            <><Printer size={14} /> Generate Executive Report</>
+            <><Printer size={14} /> {t("reports.generateExecutiveReport")}</>
           )}
         </button>
       </div>
@@ -464,7 +522,7 @@ const ReportsView: React.FC = () => {
           <Search size={14} color="var(--p-ink-tertiary)" />
           <input
             type="text"
-            placeholder="Search reports…"
+            placeholder={t("reports.searchPlaceholder")}
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             style={{
@@ -479,7 +537,7 @@ const ReportsView: React.FC = () => {
         <div style={{ display: "flex", gap: 5 }}>
           {(["all", "executive", "operational", "financial", "risk"] as const).map(cat => {
             const active = selectedCategory === cat;
-            const label = cat === "all" ? "All" : CATEGORY_CONFIG[cat].label;
+            const label = cat === "all" ? t("reports.categories.all") : t("reports.categories." + cat);
             const color = cat === "all" ? "var(--p-ink-muted)" : CATEGORY_CONFIG[cat].color;
             return (
               <button
@@ -545,7 +603,7 @@ const ReportsView: React.FC = () => {
               <button
                 onClick={() => toggleStar(template.id)}
                 style={{
-                  position: "absolute", top: 12, right: 12,
+                  position: "absolute", top: 12, insetInlineEnd: 12,
                   background: "none", border: "none", cursor: "pointer",
                   padding: 4, borderRadius: "var(--radius-sm)",
                 }}
@@ -569,12 +627,12 @@ const ReportsView: React.FC = () => {
                 }}>
                   <Icon size={16} color={CATEGORY_CONFIG[template.category].color} />
                 </div>
-                <div style={{ flex: 1, minWidth: 0, paddingRight: 20 }}>
+                <div style={{ flex: 1, minWidth: 0, paddingInlineEnd: 20 }}>
                   <div style={{
                     fontSize: 14, fontWeight: 600, color: "var(--p-ink)",
                     letterSpacing: "-0.2px", lineHeight: 1.3, marginBottom: 3,
                   }}>
-                    {template.title}
+                    {t(`reports.templates.${template.id}.title`)}
                   </div>
                   <CategoryPill category={template.category} />
                 </div>
@@ -586,7 +644,7 @@ const ReportsView: React.FC = () => {
                 fontFamily: "var(--font-body)", lineHeight: 1.55,
                 margin: 0,
               }}>
-                {template.description}
+                {t(`reports.templates.${template.id}.description`)}
               </p>
 
               {/* Tags */}
@@ -607,7 +665,7 @@ const ReportsView: React.FC = () => {
                       fontFamily: "var(--font-mono)", display: "flex",
                       alignItems: "center", gap: 4,
                     }}>
-                      <Clock size={9} /> Last: {template.lastGenerated}
+                      <Clock size={9} /> {t("reports.lastGeneratedLabel", { time: getLastGeneratedTranslation(template.lastGenerated, t) })}
                     </span>
                   )}
                   <span style={{
@@ -615,7 +673,7 @@ const ReportsView: React.FC = () => {
                     fontFamily: "var(--font-mono)", display: "flex",
                     alignItems: "center", gap: 4,
                   }}>
-                    <Calendar size={9} /> Est. {template.estimatedTime}
+                    <Calendar size={9} /> {getEstimatedTimeTranslation(template.estimatedTime, t)}
                   </span>
                 </div>
 
@@ -637,12 +695,12 @@ const ReportsView: React.FC = () => {
                   {isGenerating ? (
                     <>
                       <RefreshCw size={12} style={{ animation: "spin 0.9s linear infinite" }} />
-                      Generating…
+                      {t("reports.generating")}
                     </>
                   ) : (
                     <>
                       <FileText size={12} />
-                      Generate
+                      {t("reports.table.values.generate")}
                     </>
                   )}
                 </button>
@@ -659,8 +717,8 @@ const ReportsView: React.FC = () => {
           color: "var(--p-ink-tertiary)", fontFamily: "var(--font-body)",
         }}>
           <Search size={32} color="var(--p-ink-tertiary)" style={{ marginBottom: 12, opacity: 0.5 }} />
-          <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4 }}>No reports match your filter</div>
-          <div style={{ fontSize: 12 }}>Try adjusting your search or category filter.</div>
+          <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4 }}>{t("reports.emptyState.title")}</div>
+          <div style={{ fontSize: 12 }}>{t("reports.emptyState.subtitle")}</div>
         </div>
       )}
 
@@ -686,7 +744,7 @@ const ReportsView: React.FC = () => {
               fontSize: 13, fontWeight: 600, color: "var(--p-ink)",
               fontFamily: "var(--font-display)", letterSpacing: "-0.2px",
             }}>
-              Recent Reports
+              {t("reports.recentReports")}
             </span>
             <span style={{
               fontSize: 10, color: "var(--p-ink-tertiary)",
@@ -705,14 +763,21 @@ const ReportsView: React.FC = () => {
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr>
-                {["Report", "Generated", "By", "Size", "Status", ""].map((h, i) => (
+                {[
+                  t("reports.table.headers.report"),
+                  t("reports.table.headers.generated"),
+                  t("reports.table.headers.by"),
+                  t("reports.table.headers.size"),
+                  t("reports.table.headers.status"),
+                  ""
+                ].map((h, i) => (
                   <th
                     key={i}
                     style={{
                       padding: "10px 16px",
                       fontSize: 10, fontWeight: 600, color: "var(--p-ink-tertiary)",
                       fontFamily: "var(--font-mono)", textTransform: "uppercase",
-                      letterSpacing: "0.5px", textAlign: i >= 3 ? "center" : "left",
+                      letterSpacing: "0.5px", textAlign: i >= 3 ? "center" : "start",
                       borderBottom: "1px solid var(--p-hairline)",
                       background: "var(--p-surface-1)",
                     }}
@@ -746,7 +811,7 @@ const ReportsView: React.FC = () => {
                           fontSize: 13, fontWeight: 500, color: "var(--p-ink)",
                           fontFamily: "var(--font-body)",
                         }}>
-                          {report.title}
+                          {getReportTitleTranslation(report.title, t)}
                         </span>
                       </div>
                     </td>
@@ -758,7 +823,7 @@ const ReportsView: React.FC = () => {
                       fontSize: 12, color: "var(--p-ink-muted)",
                       fontFamily: "var(--font-body)", whiteSpace: "nowrap",
                     }}>
-                      {report.generatedAt}
+                      {getGeneratedAtTranslation(report.generatedAt, t)}
                     </td>
 
                     {/* By */}
@@ -768,7 +833,7 @@ const ReportsView: React.FC = () => {
                       fontSize: 12, color: "var(--p-ink-tertiary)",
                       fontFamily: "var(--font-body)", whiteSpace: "nowrap",
                     }}>
-                      {report.generatedBy}
+                      {getGeneratedByTranslation(report.generatedBy, t, userName)}
                     </td>
 
                     {/* Size */}
@@ -796,7 +861,7 @@ const ReportsView: React.FC = () => {
                         fontFamily: "var(--font-mono)", textTransform: "uppercase",
                       }}>
                         <StatusIcon size={9} />
-                        {report.status}
+                        {t(`reports.table.values.${report.status}`)}
                       </span>
                     </td>
 
@@ -821,7 +886,7 @@ const ReportsView: React.FC = () => {
                                 fontFamily: "var(--font-body)",
                               }}
                             >
-                              <ExternalLink size={10} /> Open
+                              <ExternalLink size={10} /> {t("reports.table.values.open")}
                             </button>
                           ) : (
                             <button
@@ -835,7 +900,7 @@ const ReportsView: React.FC = () => {
                                 fontFamily: "var(--font-body)",
                               }}
                             >
-                              <Eye size={10} /> View
+                              <Eye size={10} /> {t("reports.table.values.view")}
                             </button>
                           )}
                         </div>

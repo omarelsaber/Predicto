@@ -1,16 +1,12 @@
-/**
- * OnboardingView.tsx
- * Welcome screen shown on first visit (no username in localStorage).
- * Asks the user for their name and saves it before proceeding.
- */
-
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 interface OnboardingViewProps {
   onComplete: (name: string) => void;
 }
 
 const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) => {
+  const { t } = useTranslation();
   const [name, setName] = useState("");
   const [shake, setShake] = useState(false);
 
@@ -80,7 +76,7 @@ const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) => {
             marginBottom: 6,
           }}
         >
-          Welcome to Predicto
+          {t("onboarding.welcome")}
         </h1>
         <p
           style={{
@@ -92,7 +88,7 @@ const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) => {
             lineHeight: 1.5,
           }}
         >
-          Personalize your intelligence workspace to begin.
+          {t("onboarding.subtitle")}
         </p>
 
         {/* Form */}
@@ -113,14 +109,14 @@ const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) => {
                 marginBottom: 7,
               }}
             >
-              What should we call you?
+              {t("onboarding.nameLabel")}
             </label>
             <input
               id="onboarding-name"
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Your name or organization"
+              placeholder={t("onboarding.namePlaceholder")}
               autoFocus
               autoComplete="off"
               style={{
@@ -188,7 +184,7 @@ const OnboardingView: React.FC<OnboardingViewProps> = ({ onComplete }) => {
               e.currentTarget.style.transform = "translateY(-1px)";
             }}
           >
-            Get Started →
+            {t("onboarding.getStarted")}
           </button>
         </form>
       </div>

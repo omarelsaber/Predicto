@@ -18,6 +18,8 @@
  */
 
 import React, { useState, useMemo, useEffect } from "react";
+import { useTranslation } from "react-i18next";
+import { tSegment } from "@/lib/personaMapping";
 // query imports removed for stability
 import {
   TrendingUp,
@@ -378,31 +380,45 @@ const priorityColor = (score: number): "red" | "amber" | "indigo" | "emerald" =>
 ============================================================================= */
 
 /* ── Native Select ─────────────────────────────────────────────────────────── */
-const NativeSelect: React.FC<React.SelectHTMLAttributes<HTMLSelectElement>> = (props) => (
-  <div style={{ position: "relative" }}>
-    <select
-      {...props}
-      style={{
-        width: "100%",
-        padding: "8px 32px 8px 12px",
-        borderRadius: 8,
-        background: "var(--p-surface-1)",
-        border: "1px solid var(--p-hairline)",
-        color: "var(--p-ink-muted)",
-        fontSize: 13,
-        outline: "none",
-        appearance: "none",
-        cursor: "pointer",
-        ...props.style,
-      }}
-    />
-    <ChevronDown size={14} color="var(--p-ink-tertiary)" style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
-  </div>
-);
+const NativeSelect: React.FC<React.SelectHTMLAttributes<HTMLSelectElement>> = (props) => {
+  const { i18n } = useTranslation();
+  const isRtl = i18n.dir() === "rtl";
+  return (
+    <div style={{ position: "relative" }}>
+      <select
+        {...props}
+        style={{
+          width: "100%",
+          padding: isRtl ? "8px 12px 8px 32px" : "8px 32px 8px 12px",
+          borderRadius: 8,
+          background: "var(--p-surface-1)",
+          border: "1px solid var(--p-hairline)",
+          color: "var(--p-ink-muted)",
+          fontSize: 13,
+          outline: "none",
+          appearance: "none",
+          cursor: "pointer",
+          ...props.style,
+        }}
+      />
+      <ChevronDown
+        size={14}
+        color="var(--p-ink-tertiary)"
+        style={{
+          position: "absolute",
+          [isRtl ? "left" : "right"]: 12,
+          top: "50%",
+          transform: "translateY(-50%)",
+          pointerEvents: "none"
+        }}
+      />
+    </div>
+  );
+};
 
 const Table: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <div style={{ width: "100%", overflowX: "auto" }}>
-    <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
+    <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "start" }}>
       {children}
     </table>
   </div>
@@ -491,6 +507,7 @@ const Button: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement> & { icon?: 
 
 /* ── Custom Scatter Plot ───────────────────────────────────────────────────── */
 const RepScatterPlot: React.FC<{ series: any[] }> = ({ series }) => {
+  const { t } = useTranslation();
   const width = 600, height = 250, padding = 40;
   const plotW = width - padding * 2, plotH = height - padding * 2;
   const colors = ["#818cf8", "#a78bfa", "#34d399", "#fbbf24"];
@@ -511,7 +528,7 @@ const RepScatterPlot: React.FC<{ series: any[] }> = ({ series }) => {
            return (
              <g key={`${idx}-${i}`}>
                <circle cx={cx} cy={cy} r={4 + (p.z / 600) * 12} fill={colors[idx % colors.length]} opacity={0.6} stroke={colors[idx % colors.length]} strokeWidth={1} />
-               <title>{`${s.name}: ${p.x}% disc, ${p.y}% win, $${p.z}K ARR`}</title>
+               <title>{`${s.name}: ${p.x}% ${t("pipeline.discountPct")}, ${p.y}% ${t("pipeline.winRate")}, $${p.z}K ${t("pipeline.arr")}`}</title>
              </g>
            );
         }))}
@@ -569,6 +586,7 @@ const SummaryPill: React.FC<{
 
 /* ── Signal badge ──────────────────────────────────────────────────────────── */
 const SignalBadge: React.FC<{ signal: DealSignalType }> = ({ signal }) => {
+  const { t } = useTranslation();
   const cfg = SIGNAL_CONFIG[signal];
   const Icon = cfg.icon;
   return (
@@ -591,13 +609,14 @@ const SignalBadge: React.FC<{ signal: DealSignalType }> = ({ signal }) => {
       }}
     >
       <Icon size={9} color={cfg.color} />
-      {cfg.label}
+      {t(`pipeline.signals.${signal}`)}
     </span>
   );
 };
 
 /* ── Score result card (glassmorphic) ──────────────────────────────────────── */
 const ScoreResultCard: React.FC<{ result: DealScoreResult }> = ({ result }) => {
+  const { t } = useTranslation();
   const riskColor =
     result.risk_level === "HIGH"
       ? "#f87171"
@@ -621,15 +640,15 @@ const ScoreResultCard: React.FC<{ result: DealScoreResult }> = ({ result }) => {
       <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 14 }}>
         <CheckCircle2 size={13} color="#4ade80" />
         <span style={{ fontSize: 11, fontWeight: 600, color: "#4ade80", letterSpacing: "0.3px", fontFamily: "var(--font-mono)" }}>
-          SCORE RESULT
+          {t("pipeline.scoreResult")}
         </span>
       </div>
 
       {/* Metrics grid */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
         {[
-          { label: "Predicted Margin", value: `${(result.predicted_margin_rate * 100).toFixed(1)}%` },
-          { label: "Safe Discount Ceiling", value: `${(result.safe_discount_ceiling * 100).toFixed(1)}%` },
+          { label: t("pipeline.predictedMargin"), value: `${(result.predicted_margin_rate * 100).toFixed(1)}%` },
+          { label: t("pipeline.safeDiscountCeiling"), value: `${(result.safe_discount_ceiling * 100).toFixed(1)}%` },
         ].map(({ label, value }) => (
           <div
             key={label}
@@ -664,7 +683,7 @@ const ScoreResultCard: React.FC<{ result: DealScoreResult }> = ({ result }) => {
         }}
       >
         <span style={{ fontSize: 10, fontWeight: 600, color: riskColor, fontFamily: "var(--font-mono)", letterSpacing: "0.4px" }}>
-          RISK LEVEL: {result.risk_level}
+          {t("pipeline.riskLevel", { level: result.risk_level })}
         </span>
       </div>
 
@@ -678,7 +697,7 @@ const ScoreResultCard: React.FC<{ result: DealScoreResult }> = ({ result }) => {
         }}
       >
         <div style={{ fontSize: 10, color: "var(--p-primary-hover)", fontWeight: 600, fontFamily: "var(--font-mono)", letterSpacing: "0.3px", marginBottom: 4 }}>
-          RECOMMENDED ACTION
+          {t("pipeline.recommendedAction")}
         </div>
         <p style={{ fontSize: 12, color: "var(--p-ink-muted)", lineHeight: 1.55, margin: 0 }}>
           {result.recommended_action}
@@ -689,67 +708,70 @@ const ScoreResultCard: React.FC<{ result: DealScoreResult }> = ({ result }) => {
 };
 
 /* ── Expanded row drawer ───────────────────────────────────────────────────── */
-const ExpandedRow: React.FC<{ deal: DealRecord }> = ({ deal }) => (
-  <div
-    className="animate-fade-in"
-    style={{
-      padding:    "12px 20px 16px",
-      background: "rgba(94,106,210,0.03)",
-      borderTop:  "1px solid var(--p-hairline)",
-      display:    "grid",
-      gridTemplateColumns: "1fr 1fr 1fr",
-      gap:        16,
-    }}
-  >
-    {/* Win probability gauge */}
-    <div>
-      <div style={{ fontSize: 10, color: "var(--p-ink-tertiary)", marginBottom: 6, fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.3px" }}>
-        Win Probability
-      </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <span style={{ fontSize: 22, fontWeight: 700, color: "var(--p-ink)", letterSpacing: "-0.5px", fontVariantNumeric: "tabular-nums" }}>
-          {Math.round(deal.win_probability * 100)}%
-        </span>
-      </div>
-      <ProgressBar
-        value={deal.win_probability * 100}
-        color={deal.win_probability >= 0.7 ? "emerald" : deal.win_probability >= 0.5 ? "amber" : "red"}
-        className="mt-1.5"
-      />
-    </div>
-
-    {/* Deal details */}
-    <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-      {[
-        { k: "Stage",    v: deal.stage },
-        { k: "Industry", v: deal.industry },
-        { k: "Product",  v: deal.product },
-        { k: "Close",    v: deal.close_date },
-      ].map(({ k, v }) => (
-        <div key={k} style={{ display: "flex", justifyContent: "space-between" }}>
-          <span style={{ fontSize: 11, color: "var(--p-ink-tertiary)" }}>{k}</span>
-          <span style={{ fontSize: 11, color: "var(--p-ink-muted)", fontWeight: 500 }}>{v}</span>
+const ExpandedRow: React.FC<{ deal: DealRecord }> = ({ deal }) => {
+  const { t } = useTranslation();
+  return (
+    <div
+      className="animate-fade-in"
+      style={{
+        padding:    "12px 20px 16px",
+        background: "rgba(94,106,210,0.03)",
+        borderTop:  "1px solid var(--p-hairline)",
+        display:    "grid",
+        gridTemplateColumns: "1fr 1fr 1fr",
+        gap:        16,
+      }}
+    >
+      {/* Win probability gauge */}
+      <div>
+        <div style={{ fontSize: 10, color: "var(--p-ink-tertiary)", marginBottom: 6, fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.3px" }}>
+          {t("pipeline.winProbability")}
         </div>
-      ))}
-    </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 22, fontWeight: 700, color: "var(--p-ink)", letterSpacing: "-0.5px", fontVariantNumeric: "tabular-nums" }}>
+            {Math.round(deal.win_probability * 100)}%
+          </span>
+        </div>
+        <ProgressBar
+          value={deal.win_probability * 100}
+          color={deal.win_probability >= 0.7 ? "emerald" : deal.win_probability >= 0.5 ? "amber" : "red"}
+          className="mt-1.5"
+        />
+      </div>
 
-    {/* Recommended action */}
-    <div>
-      <div style={{ fontSize: 10, color: "var(--p-ink-tertiary)", marginBottom: 6, fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.3px" }}>
-        Recommended Action
+      {/* Deal details */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+        {[
+          { k: t("pipeline.stageKey"),    v: deal.stage },
+          { k: t("pipeline.industryKey"), v: deal.industry },
+          { k: t("pipeline.productKey"),  v: deal.product },
+          { k: t("pipeline.closeKey"),    v: deal.close_date },
+        ].map(({ k, v }) => (
+          <div key={k} style={{ display: "flex", justifyContent: "space-between" }}>
+            <span style={{ fontSize: 11, color: "var(--p-ink-tertiary)" }}>{k}</span>
+            <span style={{ fontSize: 11, color: "var(--p-ink-muted)", fontWeight: 500 }}>{v}</span>
+          </div>
+        ))}
       </div>
-      <p style={{ fontSize: 12, color: "var(--p-ink-muted)", lineHeight: 1.55, margin: 0 }}>
-        {deal.recommended_action}
-      </p>
-      <div style={{ marginTop: 8, display: "flex", gap: 6 }}>
-        <span style={{ fontSize: 10, color: "var(--p-ink-tertiary)" }}>Exec sponsor:</span>
-        <span style={{ fontSize: 10, color: deal.executive_sponsor_attached ? "#4ade80" : "#f87171", fontWeight: 600 }}>
-          {deal.executive_sponsor_attached ? "✓ Attached" : "✗ Missing"}
-        </span>
+
+      {/* Recommended action */}
+      <div>
+        <div style={{ fontSize: 10, color: "var(--p-ink-tertiary)", marginBottom: 6, fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.3px" }}>
+          {t("pipeline.recommendedActionKey")}
+        </div>
+        <p style={{ fontSize: 12, color: "var(--p-ink-muted)", lineHeight: 1.55, margin: 0 }}>
+          {deal.recommended_action}
+        </p>
+        <div style={{ marginTop: 8, display: "flex", gap: 6 }}>
+          <span style={{ fontSize: 10, color: "var(--p-ink-tertiary)" }}>{t("pipeline.execSponsorKey")}</span>
+          <span style={{ fontSize: 10, color: deal.executive_sponsor_attached ? "#4ade80" : "#f87171", fontWeight: 600 }}>
+            {deal.executive_sponsor_attached ? t("pipeline.attached") : t("pipeline.missing")}
+          </span>
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 /* ── Zone header ────────────────────────────────────────────────────────────── */
 const ZoneHeader: React.FC<{
@@ -811,6 +833,7 @@ const SortableHeader: React.FC<{
 ============================================================================= */
 
 const RepPlaybooksPanel: React.FC<{ reps: RepRecord[] }> = ({ reps }) => {
+  const { t, i18n } = useTranslation();
   const [selectedRepId, setSelectedRepId] = useState<string>("REP-001");
   const [expanded, setExpanded] = useState(true);
 
@@ -820,6 +843,8 @@ const RepPlaybooksPanel: React.FC<{ reps: RepRecord[] }> = ({ reps }) => {
     name: r.rep_name,
     data: r.scatter_points.map((p) => ({ x: p.x, y: p.y, z: p.z })),
   }));
+
+  const isRtl = i18n.dir() === "rtl";
 
   return (
     <div
@@ -846,10 +871,10 @@ const RepPlaybooksPanel: React.FC<{ reps: RepRecord[] }> = ({ reps }) => {
       >
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <span style={{ fontSize: 11, fontWeight: 500, letterSpacing: "0.4px", textTransform: "uppercase", color: "var(--p-ink-tertiary)" }}>
-            Rep Playbooks
+            {t("pipeline.repPlaybooks")}
           </span>
           <span style={{ fontSize: 11, color: "var(--p-ink-tertiary)" }}>
-            Discount % vs Win Rate · Pareto efficiency frontier
+            {t("pipeline.repPlaybooksDesc")}
           </span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -879,13 +904,16 @@ const RepPlaybooksPanel: React.FC<{ reps: RepRecord[] }> = ({ reps }) => {
         >
           {/* Scatter chart */}
           <div style={{ height: 256 }}>
-            <RepScatterPlot series={scatterSeries} />
+            {/* Force chart container direction to LTR to prevent Recharts/SVG layout issues */}
+            <div dir="ltr">
+              <RepScatterPlot series={scatterSeries} />
+            </div>
 
             {/* Pareto hint */}
             <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 6 }}>
               <div style={{ flex: 1, height: 1, background: "var(--p-hairline)" }} />
               <span style={{ fontSize: 10, color: "var(--p-ink-tertiary)", fontFamily: "var(--font-mono)", whiteSpace: "nowrap" }}>
-                Upper-left = efficient zone (low discount, high win rate)
+                {t("pipeline.efficientZone")}
               </span>
               <div style={{ flex: 1, height: 1, background: "var(--p-hairline)" }} />
             </div>
@@ -901,7 +929,7 @@ const RepPlaybooksPanel: React.FC<{ reps: RepRecord[] }> = ({ reps }) => {
                   onClick={() => setSelectedRepId(r.rep_id)}
                   style={{
                     width:        "100%",
-                    textAlign:    "left",
+                    textAlign:    "start",
                     padding:      "12px 14px",
                     borderRadius: 10,
                     background:   isSelected ? "rgba(94,106,210,0.10)" : "var(--p-surface-2)",
@@ -925,9 +953,9 @@ const RepPlaybooksPanel: React.FC<{ reps: RepRecord[] }> = ({ reps }) => {
 
                   <div style={{ display: "flex", gap: 12, marginBottom: isSelected ? 8 : 0 }}>
                     {[
-                      { k: "Avg disc.", v: `${r.avg_discount}%` },
-                      { k: "Open deals", v: String(r.deals_open) },
-                      { k: "Pipeline",   v: formatCurrency(r.arr_pipeline) },
+                      { k: t("pipeline.avgDiscountShort"), v: `${r.avg_discount}%` },
+                      { k: t("pipeline.openDealsShort"), v: String(r.deals_open) },
+                      { k: t("pipeline.pipelineShort"),   v: formatCurrency(r.arr_pipeline) },
                     ].map(({ k, v }) => (
                       <div key={k}>
                         <div style={{ fontSize: 9, color: "var(--p-ink-tertiary)", textTransform: "uppercase", letterSpacing: "0.3px", fontFamily: "var(--font-mono)" }}>{k}</div>
@@ -970,6 +998,7 @@ const humanizeId = (id: string, type: "rep" | "deal") => {
 };
 
 export const PipelineView: React.FC = () => {
+  const { t, i18n } = useTranslation();
   const [liveTotalArr, setLiveTotalArr] = useState<number | null>(null);
   const [liveWeightedArr, setLiveWeightedArr] = useState<number | null>(null);
   const [liveAvgWinProb, setLiveAvgWinProb] = useState<number | null>(null);
@@ -1107,7 +1136,7 @@ export const PipelineView: React.FC = () => {
   /* ── Deal Scorer calculation ─────────────────────────────────────────── */
   const handleScore = async () => {
     if (!scorerSegment || !scorerIndustry || !scorerProduct || !scorerRegion || scorerRevenue == null || scorerDiscount == null || scorerQuantity == null) {
-      setScorerError("Please fill in all fields before scoring.");
+      setScorerError(t("pipeline.fillAllFields"));
       return;
     }
     setScorerError(null);
@@ -1134,7 +1163,7 @@ export const PipelineView: React.FC = () => {
         predicted_margin_rate: data.predicted_margin ?? 0,
         safe_discount_ceiling: data.safe_discount_ceiling ?? 0,
         risk_level: data.risk_level ?? "MEDIUM",
-        recommended_action: data.recommendation ?? "Review deal terms.",
+        recommended_action: data.recommendation ?? t("pipeline.reviewDealTerms", "Review deal terms."),
       });
     } catch (e) {
       console.warn("Scoring API failed, falling back to mock", e);
@@ -1156,10 +1185,16 @@ export const PipelineView: React.FC = () => {
           ? "MEDIUM"
           : "LOW";
   
+      const mappedSegment = t(`common.${scorerSegment === 'Mid-Market' ? 'midMarket' : scorerSegment.toLowerCase()}`);
       const actionMap: Record<string, string> = {
-        HIGH:   `Discount of ${scorerDiscount}% exceeds the safe ceiling of ${(safeDiscountCeiling * 100).toFixed(0)}% for ${scorerSegment} in ${scorerIndustry}. Reduce discount or negotiate a multi-year commitment to offset margin erosion.`,
-        MEDIUM: `Discount is at the margin boundary. Consider adding a success-fee clause or reducing by 3–5pp to preserve margin while staying competitive.`,
-        LOW:    `Pricing is within safe margin parameters. Proceed to proposal — consider adding an exec-sponsor touchpoint before contract delivery.`,
+        HIGH:   t("pipeline.actionHigh", {
+          discount: scorerDiscount,
+          ceiling: (safeDiscountCeiling * 100).toFixed(0),
+          segment: mappedSegment,
+          industry: scorerIndustry,
+        }),
+        MEDIUM: t("pipeline.actionMedium"),
+        LOW:    t("pipeline.actionLow"),
       };
   
       setScoreResult({
@@ -1204,13 +1239,13 @@ export const PipelineView: React.FC = () => {
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between" }}>
         <div>
           <h1 className="t-headline" style={{ color: "var(--p-ink)", marginBottom: 4 }}>
-            Pipeline
+            {t("pipeline.title")}
           </h1>
           <p style={{ fontSize: 13, color: "var(--p-ink-tertiary)", margin: 0 }}>
-            Deal priority scoring · GRU+XGBoost win probability · Pareto margin analysis
+            {t("pipeline.subtitle")}
           </p>
         </div>
-        <button className="btn-icon" title="Refresh pipeline">
+        <button className="btn-icon" title={t("common.refresh")}>
           <RefreshCw size={14} />
         </button>
       </div>
@@ -1219,10 +1254,10 @@ export const PipelineView: React.FC = () => {
           SUMMARY STAT PILLS
       ════════════════════════════════════════════════════════════════════ */}
       <div style={{ display: "flex", gap: 10 }}>
-        <SummaryPill icon={DollarSign} label="Total Pipeline" value={formatCurrency(liveTotalArr ?? totalArr)} accent="var(--p-primary)" />
-        <SummaryPill icon={TrendingUp} label="Weighted Pipeline" value={formatCurrency(liveWeightedArr ?? weightedPipeline)} accent="#828fff" />
-        <SummaryPill icon={Target}     label="Avg Win Prob."  value={`${Math.round(liveAvgWinProb ?? avgWinProb)}%`}      accent="#4ade80" />
-        <SummaryPill icon={AlertTriangle} label="Discount / Margin Risk" value={`${liveDiscountRisk ?? discountRiskCount} deals`} accent="#f87171" />
+        <SummaryPill icon={DollarSign} label={t("pipeline.totalPipeline")} value={formatCurrency(liveTotalArr ?? totalArr)} accent="var(--p-primary)" />
+        <SummaryPill icon={TrendingUp} label={t("pipeline.weightedPipeline")} value={formatCurrency(liveWeightedArr ?? weightedPipeline)} accent="#828fff" />
+        <SummaryPill icon={Target}     label={t("pipeline.avgWinProb")}  value={`${Math.round(liveAvgWinProb ?? avgWinProb)}%`}      accent="#4ade80" />
+        <SummaryPill icon={AlertTriangle} label={t("pipeline.discountMarginRisk")} value={t("pipeline.dealsCount", { count: liveDiscountRisk ?? discountRiskCount })} accent="#f87171" />
       </div>
 
       {/* ════════════════════════════════════════════════════════════════════
@@ -1240,8 +1275,8 @@ export const PipelineView: React.FC = () => {
         }}
       >
         <Filter size={13} color="var(--p-ink-tertiary)" style={{ flexShrink: 0 }} />
-        <span style={{ fontSize: 11, color: "var(--p-ink-tertiary)", fontFamily: "var(--font-mono)", marginRight: 6 }}>
-          FILTER
+        <span style={{ fontSize: 11, color: "var(--p-ink-tertiary)", fontFamily: "var(--font-mono)", marginInlineEnd: 6 }}>
+          {t("pipeline.filter")}
         </span>
 
         {/* Segment */}
@@ -1250,10 +1285,10 @@ export const PipelineView: React.FC = () => {
             value={segmentFilter}
             onChange={(e) => setSegmentFilter(e.target.value)}
           >
-            <option value="all">All Segments</option>
-            <option value="Enterprise">Enterprise</option>
-            <option value="Mid-Market">Mid-Market</option>
-            <option value="SMB">SMB</option>
+            <option value="all">{t("common.allSegments")}</option>
+            <option value="Enterprise">{t("common.enterprise")}</option>
+            <option value="Mid-Market">{t("common.midMarket")}</option>
+            <option value="SMB">{t("common.smb")}</option>
           </NativeSelect>
         </div>
 
@@ -1263,7 +1298,7 @@ export const PipelineView: React.FC = () => {
             value={repFilter}
             onChange={(e) => setRepFilter(e.target.value)}
           >
-            <option value="all">All Reps</option>
+            <option value="all">{t("pipeline.allReps")}</option>
             {LIVE_REPS.map((r) => (
               <option key={r.rep_id} value={r.rep_name}>{r.rep_name}</option>
             ))}
@@ -1276,20 +1311,20 @@ export const PipelineView: React.FC = () => {
             value={signalFilter}
             onChange={(e) => setSignalFilter(e.target.value)}
           >
-            <option value="all">All Signals</option>
-            <option value="DISCOUNT_CLIFF">Discount Cliff</option>
-            <option value="MARGIN_PRESSURE">Margin Pressure</option>
-            <option value="HIGH_PRIORITY">High Priority</option>
-            <option value="EXPANSION_READY">Expansion Ready</option>
-            <option value="LONG_CYCLE">Long Cycle</option>
-            <option value="EXEC_SPONSOR_MISSING">No Exec Sponsor</option>
-            <option value="RENEWAL_RISK">Renewal Risk</option>
+            <option value="all">{t("pipeline.allSignals")}</option>
+            <option value="DISCOUNT_CLIFF">{t("pipeline.signals.DISCOUNT_CLIFF")}</option>
+            <option value="MARGIN_PRESSURE">{t("pipeline.signals.MARGIN_PRESSURE")}</option>
+            <option value="HIGH_PRIORITY">{t("pipeline.signals.HIGH_PRIORITY")}</option>
+            <option value="EXPANSION_READY">{t("pipeline.signals.EXPANSION_READY")}</option>
+            <option value="LONG_CYCLE">{t("pipeline.signals.LONG_CYCLE")}</option>
+            <option value="EXEC_SPONSOR_MISSING">{t("pipeline.signals.EXEC_SPONSOR_MISSING")}</option>
+            <option value="RENEWAL_RISK">{t("pipeline.signals.RENEWAL_RISK")}</option>
           </NativeSelect>
         </div>
 
         {/* Result count */}
-        <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--p-ink-tertiary)", fontFamily: "var(--font-mono)", whiteSpace: "nowrap" }}>
-          {visibleDeals.length} / {LIVE_DEALS.length} deals
+        <span style={{ marginInlineStart: "auto", fontSize: 11, color: "var(--p-ink-tertiary)", fontFamily: "var(--font-mono)", whiteSpace: "nowrap" }}>
+          {t("pipeline.dealsCountShort", { visible: visibleDeals.length, total: LIVE_DEALS.length })}
         </span>
 
         {/* Clear filters */}
@@ -1312,7 +1347,7 @@ export const PipelineView: React.FC = () => {
             }}
           >
             <X size={9} />
-            Clear
+            {t("common.clear")}
           </button>
         )}
       </div>
@@ -1330,8 +1365,11 @@ export const PipelineView: React.FC = () => {
           {/* Table header bar */}
           <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid var(--p-hairline)" }}>
             <ZoneHeader
-              title="Deal Priority Queue"
-              subtitle={`Sorted by ${sortField.replace(/_/g, " ")} · ${sortDir === "desc" ? "highest first" : "lowest first"}`}
+              title={t("pipeline.dealPriorityQueue")}
+              subtitle={t("pipeline.sortedBy", {
+                field: sortField === "priority_score" ? t("pipeline.priorityScore") : sortField === "win_probability" ? t("pipeline.winProb") : sortField === "arr" ? t("pipeline.arr") : t("pipeline.cycle"),
+                dir: sortDir === "desc" ? t("pipeline.highestFirst") : t("pipeline.lowestFirst")
+              })}
             />
           </div>
 
@@ -1345,31 +1383,31 @@ export const PipelineView: React.FC = () => {
                 <TableHeaderCell style={{ width: 36, padding: "10px 8px 10px 16px" }} />
 
                 <TableHeaderCell style={{ padding: "10px 12px", fontSize: 11, color: "var(--p-ink-tertiary)", fontWeight: 500, letterSpacing: "0.3px", fontFamily: "var(--font-body)" }}>
-                  Deal / Company
+                  {t("pipeline.dealCompany")}
                 </TableHeaderCell>
 
                 <TableHeaderCell style={{ padding: "10px 12px", fontSize: 11, color: "var(--p-ink-tertiary)", fontWeight: 500, letterSpacing: "0.3px", textAlign: "right", fontFamily: "var(--font-body)" }}>
-                  <SortableHeader field="arr" label="ARR" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
+                  <SortableHeader field="arr" label={t("pipeline.arr")} sortField={sortField} sortDir={sortDir} onSort={handleSort} />
                 </TableHeaderCell>
 
                 <TableHeaderCell style={{ padding: "10px 12px", fontSize: 11, color: "var(--p-ink-tertiary)", fontWeight: 500, letterSpacing: "0.3px", fontFamily: "var(--font-body)" }}>
-                  <SortableHeader field="priority_score" label="Priority Score" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
+                  <SortableHeader field="priority_score" label={t("pipeline.priorityScore")} sortField={sortField} sortDir={sortDir} onSort={handleSort} />
                 </TableHeaderCell>
 
                 <TableHeaderCell style={{ padding: "10px 12px", fontSize: 11, color: "var(--p-ink-tertiary)", fontWeight: 500, letterSpacing: "0.3px", fontFamily: "var(--font-body)" }}>
-                  <SortableHeader field="win_probability" label="Win Prob." sortField={sortField} sortDir={sortDir} onSort={handleSort} />
+                  <SortableHeader field="win_probability" label={t("pipeline.winProb")} sortField={sortField} sortDir={sortDir} onSort={handleSort} />
                 </TableHeaderCell>
 
                 <TableHeaderCell style={{ padding: "10px 12px", fontSize: 11, color: "var(--p-ink-tertiary)", fontWeight: 500, letterSpacing: "0.3px", fontFamily: "var(--font-body)" }}>
-                  Signal
+                  {t("pipeline.signal")}
                 </TableHeaderCell>
 
                 <TableHeaderCell style={{ padding: "10px 12px", fontSize: 11, color: "var(--p-ink-tertiary)", fontWeight: 500, letterSpacing: "0.3px", fontFamily: "var(--font-body)" }}>
-                  Rep
+                  {t("pipeline.rep")}
                 </TableHeaderCell>
 
                 <TableHeaderCell style={{ padding: "10px 16px 10px 12px", fontSize: 11, color: "var(--p-ink-tertiary)", fontWeight: 500, letterSpacing: "0.3px", textAlign: "right", fontFamily: "var(--font-body)" }}>
-                  <SortableHeader field="sales_cycle_days" label="Cycle" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
+                  <SortableHeader field="sales_cycle_days" label={t("pipeline.cycle")} sortField={sortField} sortDir={sortDir} onSort={handleSort} />
                 </TableHeaderCell>
               </TableRow>
             </TableHead>
@@ -1381,7 +1419,7 @@ export const PipelineView: React.FC = () => {
                     colSpan={8}
                     style={{ textAlign: "center", padding: "48px 20px", color: "var(--p-ink-tertiary)", fontSize: 13 }}
                   >
-                    No deals match the active filters.
+                    {t("pipeline.noDealsFilters")}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -1424,7 +1462,7 @@ export const PipelineView: React.FC = () => {
                             {deal.company}
                             <span
                               style={{
-                                marginLeft:    6,
+                                marginInlineStart: 6,
                                 padding:       "1px 6px",
                                 borderRadius:  "9999px",
                                 background:    "rgba(94,106,210,0.08)",
@@ -1436,7 +1474,7 @@ export const PipelineView: React.FC = () => {
                                 textTransform: "uppercase",
                               }}
                             >
-                              {deal.segment}
+                              {tSegment(deal.segment)}
                             </span>
                           </div>
                         </TableCell>
@@ -1447,7 +1485,7 @@ export const PipelineView: React.FC = () => {
                             {formatCurrency(deal.arr)}
                           </span>
                           <div style={{ fontSize: 10, color: "var(--p-ink-tertiary)", textAlign: "right", marginTop: 1 }}>
-                            ARR
+                            {t("pipeline.arr")}
                           </div>
                         </TableCell>
 
@@ -1532,10 +1570,10 @@ export const PipelineView: React.FC = () => {
             }}
           >
             <span style={{ fontSize: 11, color: "var(--p-ink-tertiary)" }}>
-              Total pipeline: {formatCurrency(visibleDeals.reduce((s, d) => s + d.arr, 0))} ARR
+              {t("pipeline.totalPipelineValue", { value: formatCurrency(visibleDeals.reduce((s, d) => s + d.arr, 0)) })}
             </span>
             <span style={{ fontSize: 11, color: "var(--p-ink-tertiary)", fontFamily: "var(--font-mono)" }}>
-              {visibleDeals.length} deals shown
+              {t("pipeline.dealsShown", { count: visibleDeals.length })}
             </span>
           </div>
         </div>
@@ -1550,14 +1588,14 @@ export const PipelineView: React.FC = () => {
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
               <div>
                 <div style={{ fontSize: 11, fontWeight: 500, letterSpacing: "0.4px", textTransform: "uppercase", color: "var(--p-ink-tertiary)", fontFamily: "var(--font-body)", marginBottom: 2 }}>
-                  Deal Scorer
+                  {t("pipeline.dealScorer")}
                 </div>
                 <div style={{ fontSize: 11, color: "var(--p-ink-tertiary)" }}>
-                  V1 Margin Engine · POST /deals/score
+                  {t("pipeline.marginEngine")}
                 </div>
               </div>
               {scoreResult && (
-                <button onClick={handleClearScore} className="btn-icon" title="Clear result">
+                <button onClick={handleClearScore} className="btn-icon" title={t("pipeline.clear", "Clear")}>
                   <X size={13} />
                 </button>
               )}
@@ -1569,23 +1607,23 @@ export const PipelineView: React.FC = () => {
               {/* Segment */}
               <div>
                 <label style={{ display: "block", fontSize: 11, color: "var(--p-ink-tertiary)", marginBottom: 4, fontFamily: "var(--font-body)" }}>
-                  Segment
+                  {t("pipeline.segmentKey")}
                 </label>
                 <NativeSelect value={scorerSegment} onChange={(e) => setScorerSegment(e.target.value)}>
-                  <option value="" disabled hidden>Select segment…</option>
-                  <option value="Enterprise">Enterprise</option>
-                  <option value="Mid-Market">Mid-Market</option>
-                  <option value="SMB">SMB</option>
+                  <option value="" disabled hidden>{t("pipeline.selectSegment")}</option>
+                  <option value="Enterprise">{t("common.enterprise")}</option>
+                  <option value="Mid-Market">{t("common.midMarket")}</option>
+                  <option value="SMB">{t("common.smb")}</option>
                 </NativeSelect>
               </div>
 
               {/* Industry */}
               <div>
                 <label style={{ display: "block", fontSize: 11, color: "var(--p-ink-tertiary)", marginBottom: 4, fontFamily: "var(--font-body)" }}>
-                  Industry
+                  {t("pipeline.industryKey")}
                 </label>
                 <NativeSelect value={scorerIndustry} onChange={(e) => setScorerIndustry(e.target.value)}>
-                  <option value="" disabled hidden>Select industry…</option>
+                  <option value="" disabled hidden>{t("pipeline.selectIndustry")}</option>
                   {["FinTech", "HealthTech", "E-Commerce", "SaaS", "Manufacturing", "Retail", "Education", "Logistics"].map((i) => (
                     <option key={i} value={i}>{i}</option>
                   ))}
@@ -1595,10 +1633,10 @@ export const PipelineView: React.FC = () => {
               {/* Product */}
               <div>
                 <label style={{ display: "block", fontSize: 11, color: "var(--p-ink-tertiary)", marginBottom: 4, fontFamily: "var(--font-body)" }}>
-                  Product
+                  {t("pipeline.productKey")}
                 </label>
                 <NativeSelect value={scorerProduct} onChange={(e) => setScorerProduct(e.target.value)}>
-                  <option value="" disabled hidden>Select product…</option>
+                  <option value="" disabled hidden>{t("pipeline.selectProduct")}</option>
                   {["Predicto Enterprise", "Predicto Pro", "Predicto Core", "Predicto Lite"].map((p) => (
                     <option key={p} value={p}>{p}</option>
                   ))}
@@ -1608,10 +1646,10 @@ export const PipelineView: React.FC = () => {
               {/* Region */}
               <div>
                 <label style={{ display: "block", fontSize: 11, color: "var(--p-ink-tertiary)", marginBottom: 4, fontFamily: "var(--font-body)" }}>
-                  Region
+                  {t("pipeline.regionKey")}
                 </label>
                 <NativeSelect value={scorerRegion} onChange={(e) => setScorerRegion(e.target.value)}>
-                  <option value="" disabled hidden>Select region…</option>
+                  <option value="" disabled hidden>{t("pipeline.selectRegion")}</option>
                   {["North America", "EMEA", "APAC", "LATAM"].map((r) => (
                     <option key={r} value={r}>{r}</option>
                   ))}
@@ -1621,7 +1659,7 @@ export const PipelineView: React.FC = () => {
               {/* Revenue per unit */}
               <div>
                 <label style={{ display: "block", fontSize: 11, color: "var(--p-ink-tertiary)", marginBottom: 4, fontFamily: "var(--font-body)" }}>
-                  Revenue per unit ($)
+                  {t("pipeline.revenuePerUnit")}
                 </label>
                 <NumberInput
                   value={scorerRevenue}
@@ -1636,7 +1674,7 @@ export const PipelineView: React.FC = () => {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                 <div>
                   <label style={{ display: "block", fontSize: 11, color: "var(--p-ink-tertiary)", marginBottom: 4, fontFamily: "var(--font-body)" }}>
-                    Discount (%)
+                    {t("pipeline.discountPct")}
                   </label>
                   <NumberInput
                     value={scorerDiscount}
@@ -1649,7 +1687,7 @@ export const PipelineView: React.FC = () => {
                 </div>
                 <div>
                   <label style={{ display: "block", fontSize: 11, color: "var(--p-ink-tertiary)", marginBottom: 4, fontFamily: "var(--font-body)" }}>
-                    Quantity
+                    {t("pipeline.quantity")}
                   </label>
                   <NumberInput
                     value={scorerQuantity}
@@ -1681,10 +1719,10 @@ export const PipelineView: React.FC = () => {
                 {isScoring ? (
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                     <Loader2 size={13} style={{ animation: "spin 0.8s linear infinite" }} />
-                    Scoring…
+                    {t("pipeline.scoring")}
                   </span>
                 ) : (
-                  "Score This Deal"
+                  t("pipeline.scoreThisDeal")
                 )}
               </Button>
             </div>
@@ -1709,7 +1747,7 @@ export const PipelineView: React.FC = () => {
             >
               <Info size={11} color="var(--p-primary-hover)" style={{ marginTop: 1, flexShrink: 0 }} />
               <span style={{ fontSize: 11, color: "var(--p-ink-tertiary)", lineHeight: 1.5 }}>
-                Click any deal row to expand it, then adjust the scorer to simulate alternative discount scenarios.
+                {t("pipeline.scorerHint")}
               </span>
             </div>
           )}

@@ -4,7 +4,7 @@
    ========================================================================== */
 
 @import "tailwindcss";
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Cairo:wght@300;400;500;600;700&display=swap");
 
 /* --------------------------------------------------------------------------
    Tailwind v4 Theme — CSS-first configuration
@@ -377,7 +377,7 @@ body {
   min-width: var(--sidebar-width);
   height: 100dvh;
   background-color: var(--p-surface-1);
-  border-right: 1px solid var(--p-hairline);
+  border-inline-end: 1px solid var(--p-hairline);
   display: flex;
   flex-direction: column;
   transition: width 250ms cubic-bezier(0.4, 0, 0.2, 1),
@@ -540,7 +540,7 @@ body {
   min-width: var(--ai-panel-width);
   height: 100dvh;
   background-color: var(--p-surface-1);
-  border-left: 1px solid var(--p-hairline);
+  border-inline-start: 1px solid var(--p-hairline);
   display: flex;
   flex-direction: column;
   transition: width 250ms cubic-bezier(0.4, 0, 0.2, 1),
@@ -937,4 +937,60 @@ body {
   background: var(--p-surface-2)       !important;
   border:     1px solid var(--p-hairline-strong) !important;
   color:      var(--p-ink-muted)       !important;
+}
+
+/* ==========================================================================
+   RTL (Arabic) Overrides
+   Applied via [dir="rtl"] on <html> element by i18n.ts
+   ========================================================================== */
+
+/* ── Arabic font family override ─────────────────────────────── */
+body.lang-ar {
+  --font-display: "Cairo", "Inter", -apple-system, system-ui, sans-serif;
+  --font-body:    "Cairo", "Inter", -apple-system, system-ui, sans-serif;
+}
+
+body.lang-ar,
+body.lang-ar * {
+  font-family: "Cairo", "Inter", -apple-system, system-ui, sans-serif;
+  letter-spacing: 0 !important;
+}
+
+/* Skip uppercase for Arabic — Arabic has no concept of case */
+[dir="rtl"] .sidebar-nav-group-label {
+  text-transform: none;
+}
+
+/* ── Chat message alignment ──────────────────────────────────── */
+[dir="rtl"] .msg-user {
+  margin-inline-start: auto;
+  margin-inline-end: 0;
+}
+
+[dir="rtl"] .msg-ai {
+  margin-inline-end: auto;
+  margin-inline-start: 0;
+}
+
+/* ── Charts must always render LTR ───────────────────────────── */
+.chart-ltr-wrapper {
+  direction: ltr;
+}
+
+[dir="rtl"] .recharts-wrapper,
+[dir="rtl"] .tremor-BarChart-root,
+[dir="rtl"] .tremor-AreaChart-root,
+[dir="rtl"] .tremor-DonutChart-root,
+[dir="rtl"] .tremor-ScatterChart-root {
+  direction: ltr;
+}
+
+/* ── Animation tweaks for RTL ────────────────────────────────── */
+@keyframes slide-in-rtl {
+  from { opacity: 0; transform: translateX(-16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+[dir="rtl"] .animate-slide-in {
+  animation: slide-in-rtl 0.3s ease-out;
 }

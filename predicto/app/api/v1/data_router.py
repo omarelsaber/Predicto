@@ -132,6 +132,43 @@ async def ingest_upload(
     upload_path = settings.data_dir / "uploaded_data.csv"
     try:
         contents = await file.read()
+        
+        # Detect ZIP file and extract the sales/transactions CSV
+        import zipfile
+        import io
+        if zipfile.is_zipfile(io.BytesIO(contents)):
+            logger.info("ZIP archive detected in V1 ingest. Extracting transaction CSV...")
+            with zipfile.ZipFile(io.BytesIO(contents)) as zf:
+                csv_members = [
+                    m.filename for m in zf.infolist()
+                    if not m.is_dir() and m.filename.lower().endswith(".csv")
+                ]
+                if not csv_members:
+                    raise ValueError("The uploaded ZIP archive contains no CSV files.")
+                
+                # Search for a CSV matching sales, crm, or deal (excluding attribution/snapshots)
+                sales_member = None
+                # 1. Look for 'sales' or 'crm' specifically
+                for name in csv_members:
+                    basename = name.replace("\\", "/").split("/")[-1].lower()
+                    if any(kw in basename for kw in ["sales", "crm"]):
+                        sales_member = name
+                        break
+                
+                # 2. Look for 'deal' if still not found, but ignore attribution
+                if sales_member is None:
+                    for name in csv_members:
+                        basename = name.replace("\\", "/").split("/")[-1].lower()
+                        if "deal" in basename and "attribution" not in basename:
+                            sales_member = name
+                            break
+                
+                if sales_member is None:
+                    sales_member = csv_members[0]
+                
+                logger.info("Extracting '%s' from ZIP archive", sales_member)
+                contents = zf.read(sales_member)
+
         upload_path.write_bytes(contents)
         logger.info("Saved uploaded CSV to %s (%d bytes)", upload_path, len(contents))
     except Exception as exc:

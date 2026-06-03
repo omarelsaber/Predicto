@@ -1,9 +1,11 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import CausalEngineView from '@/views/IntelligenceLab/CausalEngine/CausalEngineView';
 import TopologyOptimizerView from '@/views/IntelligenceLab/TopologyOptimizer/TopologyOptimizerView';
 import WarRoomView from '@/views/IntelligenceLab/WarRoom/WarRoomView';
 
 export default function IntelligenceLabView() {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<'causal' | 'topology' | 'warroom'>('causal');
 
   return (
@@ -11,9 +13,9 @@ export default function IntelligenceLabView() {
       {/* Tab Navigation */}
       <div className="flex gap-4 border-b border-slate-700">
         {[
-          { id: 'causal', label: 'Causal Inference Engine' },
-          { id: 'topology', label: 'Topology Optimizer' },
-          { id: 'warroom', label: 'War Room (CFR)' },
+          { id: 'causal', label: t('nav.causalEngine', 'Causal Inference Engine') },
+          { id: 'topology', label: t('nav.topologyOptimizer', 'Topology Optimizer') },
+          { id: 'warroom', label: t('nav.warRoom', 'War Room (CFR)') },
         ].map((tab) => (
           <button
             key={tab.id}

@@ -15,9 +15,10 @@
  * with query hook calls.
  */
 
-/** FIX 1 — Add useNavigate and useCallback imports */
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import i18next from "i18next";
 import {
   AreaChart,
   ScatterChart,
@@ -173,6 +174,7 @@ const ActionQueueItem: React.FC<{ item: ActionItem; index: number; onNavigate: (
   index,
   onNavigate,
 }) => {
+  const { t } = useTranslation();
   const { dot, label, labelColor } = PRIORITY_STYLES[item.priority];
   const ItemIcon = item.icon;
 
@@ -247,7 +249,7 @@ const ActionQueueItem: React.FC<{ item: ActionItem; index: number; onNavigate: (
               fontFamily:    "var(--font-mono)",
             }}
           >
-            {label}
+            {t(`hub.${item.priority === 'critical' ? 'urgent' : item.priority}`)}
           </span>
 
           {/* Title */}
@@ -307,7 +309,7 @@ const ActionQueueItem: React.FC<{ item: ActionItem; index: number; onNavigate: (
               fontFamily: "var(--font-mono)",
             }}
           >
-            {item.daysLeft}d left
+            {t("hub.daysLeft", { count: item.daysLeft })}
           </span>
         )}
         {/* CTA button */}
@@ -385,16 +387,19 @@ const humanLabel = (raw: string): string => {
 
 const CustomTooltip = ({ payload, active, label }: any) => {
   if (!active || !payload) return null;
+  const currentText = i18next.t("hub.current", "Current");
+  const upperText = i18next.t("hub.upper", "Upper");
+  const lowerText = i18next.t("hub.lower", "Lower");
+
   return (
     <div className="surface-1" style={{ padding: "12px", border: "1px solid var(--p-hairline)", borderRadius: "8px", maxWidth: "180px", whiteSpace: "nowrap" }}>
       <div style={{ fontSize: "12px", color: "var(--p-ink-tertiary)", marginBottom: "8px" }}>{label}</div>
       {payload.map((category: any, idx: number) => {
         if (category.value === null || category.value === undefined) return null;
         /** FIX 3 — Forecast tooltip: hide Upper/Lower at Current bridge point */
-        if (
-          label === "Current" &&
-          (category.name === "Upper" || category.name === "Lower")
-        ) return null;
+        const isCurrentPoint = label === "Current" || label === currentText;
+        const isUpperOrLower = category.name === "Upper" || category.name === "Lower" || category.name === upperText || category.name === lowerText;
+        if (isCurrentPoint && isUpperOrLower) return null;
         return (
           <div key={idx} style={{ display: "flex", justifyContent: "space-between", gap: "16px", alignItems: "center" }}>
             <span style={{ fontSize: "13px", color: "var(--p-ink)", display: "flex", alignItems: "center", gap: "6px" }}>
@@ -414,6 +419,58 @@ const CustomTooltip = ({ payload, active, label }: any) => {
 export const IntelligenceHubView: React.FC = () => {
   /** FIX 1 — Add navigate hook for react-router */
   const navigate = useNavigate();
+  const { t } = useTranslation();
+
+  const KPI_KEY_MAP: Record<string, string> = {
+    "Total ARR": "hub.totalArr",
+    "NRR": "hub.nrr",
+    "MRR Growth": "hub.mrrGrowth",
+    "Gross Churn": "hub.grossChurn",
+    "Win Rate": "hub.winRate",
+    "Health Score": "hub.healthScore",
+    "Avg Churn Risk": "hub.churnRisk",
+    "Revenue Retention": "hub.retentionRate"
+  };
+
+  const translateKpiLabel = useCallback((label: string): string => {
+    const key = KPI_KEY_MAP[label];
+    return key ? t(key) : t(label, label);
+  }, [t]);
+
+  const translatePersona = useCallback((persona: string): string => {
+    const p = persona.toLowerCase().replace(/[^a-z]/g, "");
+    if (p.includes("champion")) return t("personas.champions", "Champions");
+    if (p.includes("growthstar")) return t("personas.growthStars", "Growth Stars");
+    if (p.includes("atrisk")) return t("personas.atRisk", "At-Risk Accounts");
+    if (p.includes("newpromising") || p.includes("new")) return t("personas.newPromising", "New & Promising");
+    if (p.includes("need")) return t("personas.needsAttention", "Needs Attention");
+    if (p.includes("loyal")) return t("personas.loyalBase", "Loyal Base");
+    return t(`personas.${persona}`, persona);
+  }, [t]);
+
+  const translateActionTitle = useCallback((title: string): string => {
+    if (title === "Enterprise Churn Risk") return t("risk.enterpriseChurnRisk", "Enterprise Churn Risk");
+    if (title === "Renewal Upcoming") return t("risk.renewalUpcoming", "Renewal Upcoming");
+    return t(title, title);
+  }, [t]);
+
+  const translateCtaLabel = useCallback((label: string): string => {
+    const l = label.toLowerCase();
+    if (l.includes("intervene")) return t("hub.intervene");
+    if (l.includes("view")) return t("hub.view");
+    if (l.includes("playbook")) return t("risk.createPlaybook");
+    return t(label, label);
+  }, [t]);
+
+  const translateSegment = useCallback((segName: string): string => {
+    const s = segName.toLowerCase().replace(/[^a-z]/g, "");
+    if (s.includes("all")) return t("common.allSegments", "All Segments");
+    if (s.includes("enterprise")) return t("common.enterprise");
+    if (s.includes("midmarket")) return t("common.midMarket");
+    if (s.includes("smb")) return t("common.smb");
+    return t(`common.${segName}`, segName);
+  }, [t]);
+
   const [zoneD_expanded, setZoneD_expanded] = useState(true);  // start expanded so actions are immediately visible
   const [isRefreshing,   setIsRefreshing]   = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -474,11 +531,15 @@ export const IntelligenceHubView: React.FC = () => {
 
       if (!hasRealData) {
         // ONLY trigger fallback if there is absolutely no active ingestion cache on the server
-        setKpiData(FALLBACK_KPIS);
+        setKpiData(FALLBACK_KPIS.map(k => ({ ...k, label: translateKpiLabel(k.label) })));
         setForecastData(FALLBACK_FORECAST);
         setScatterSeries(FALLBACK_SCATTER);
         setScatterColors(FALLBACK_SCATTER_COLORS);
-        setActionQueue(FALLBACK_ACTIONS);
+        setActionQueue(FALLBACK_ACTIONS.map(a => ({
+          ...a,
+          title: translateActionTitle(a.title),
+          ctaLabel: translateCtaLabel(a.ctaLabel || "Action")
+        })));
         setActionQueueSummary({ critical: 1, high: 1, medium: 0, totalArr: 205000 });
         setActiveModel("Mock Mode");
         setIsLoading(false);
@@ -518,7 +579,7 @@ export const IntelligenceHubView: React.FC = () => {
            }
 
            return {
-             label: k.label,
+             label: translateKpiLabel(k.label),
              value: displayValue,
              delta: k.delta_label || (deltaVal > 0 ? `+${deltaVal}` : deltaVal === 0 ? "—" : `${deltaVal}`),
              deltaType: k.trend === "up" ? "increase" : k.trend === "down" ? "decrease" : "unchanged",
@@ -530,7 +591,7 @@ export const IntelligenceHubView: React.FC = () => {
 
         const healthScore = hubRes?.overall_health_score ?? 0;
         mappedKpis.push({
-           label: "Health Score",
+           label: translateKpiLabel("Health Score"),
            value: healthScore === 0 ? "—" : String(healthScore),
            delta: healthScore >= 80 ? "Healthy" : healthScore === 0 ? "No Data" : "At Risk",
            deltaType: healthScore >= 80 ? "increase" : "decrease",
@@ -541,11 +602,11 @@ export const IntelligenceHubView: React.FC = () => {
 
         /** FIX 1 — Gross Churn fallback when backend returns 0 */
         const churnIdx = mappedKpis.findIndex((k: any) => 
-          k.label === "Gross Churn" || k.label === "Avg Churn Risk"
+          k.label === translateKpiLabel("Gross Churn") || k.label === translateKpiLabel("Avg Churn Risk")
         );
         if (churnIdx !== -1 && mappedKpis[churnIdx].value === "—") {
           // Try to derive from NRR: if NRR > 100%, churn is likely low
-          const nrrEntry = mappedKpis.find((k: any) => k.label === "NRR" || (k.key && k.key.includes("nrr")));
+          const nrrEntry = mappedKpis.find((k: any) => k.label === translateKpiLabel("NRR") || (k.key && k.key.includes("nrr")));
           const nrrVal = nrrEntry ? parseFloat(nrrEntry.value) : 0;
           const impliedChurn = nrrVal > 100 
             ? `${(100 - (nrrVal - 100) * 0.3).toFixed(1)}%`
@@ -564,12 +625,12 @@ export const IntelligenceHubView: React.FC = () => {
            const churnValStr = mappedKpis[churnIdx].value;
            const churnValNum = parseFloat(churnValStr);
            if (!isNaN(churnValNum) && churnValNum > 50) {
-              mappedKpis[churnIdx].label = "Revenue Retention";
+              mappedKpis[churnIdx].label = translateKpiLabel("Revenue Retention");
            }
         }
 
         setKpiData(mappedKpis);
-        setActiveModel(hubRes?.active_model === "lite" ? "Lite Model" : "GRU+XGBoost");
+         setActiveModel(hubRes?.active_model === "lite" ? t("Lite Model", "Lite Model") : "GRU+XGBoost");
       }
 
       // ── Zone D: Action Queue ───────────────────────────────────────────
@@ -631,12 +692,12 @@ export const IntelligenceHubView: React.FC = () => {
 
            return {
              priority: prio as ActionItem["priority"],
-             title: finalTitle,
+             title: translateActionTitle(finalTitle),
              sub: a.description || "",
              arr: arrDisplay,
              daysLeft: inno.includes("RENEWAL") ? 14 : 0,
              icon: IconName,
-             ctaLabel: (a.cta_label || "Action").replace(/\s*→+\s*$/, "").trim(),
+             ctaLabel: translateCtaLabel((a.cta_label || "Action").replace(/\s*→+\s*$/, "").trim()),
              entityId: a.entity_id || "N/A",
            };
         });
@@ -756,7 +817,7 @@ export const IntelligenceHubView: React.FC = () => {
                return `$${(arrVal * 1000).toFixed(0)} avg ARR`;
              })();
              return {
-               persona: humanLabel(rawLabel),
+               persona: translatePersona(humanLabel(rawLabel)),
                x: Math.round(arrVal),
                y: Math.round(churnFloat * 100),
                size: Math.min(Math.max((p.z ?? p.cluster_size ?? p.count ?? 5), 1), 80),
@@ -808,7 +869,7 @@ export const IntelligenceHubView: React.FC = () => {
                return `$${(arrVal * 1000).toFixed(0)} avg ARR`;
              })();
              return {
-               persona: humanLabel(rawName),
+               persona: translatePersona(humanLabel(rawName)),
                x: Math.round(arrVal),
                y: Math.round(churnFloat * 100),
                size: Math.min(Math.max((r.z ?? r.cluster_size ?? r.count ?? 5), 1), 80),
@@ -875,7 +936,7 @@ export const IntelligenceHubView: React.FC = () => {
             className="t-headline"
             style={{ color: "var(--p-ink)", marginBottom: 4 }}
           >
-            Intelligence Hub
+            {t("nav.intelligenceHub")}
           </h1>
           <p
             style={{
@@ -884,7 +945,7 @@ export const IntelligenceHubView: React.FC = () => {
               margin:   0,
             }}
           >
-            Revenue snapshot · May 2025 · GRU+XGBoost (full model)
+            {t("hub.revenueSnapshot", { date: "May 2025", model: activeModel })}
           </p>
         </div>
 
@@ -914,7 +975,7 @@ export const IntelligenceHubView: React.FC = () => {
           <button
             className="btn-icon"
             onClick={handleRefresh}
-            title="Refresh metrics"
+            title={t("hub.refreshMetrics")}
             style={{
               color: isRefreshing ? "var(--p-primary-hover)" : undefined,
             }}
@@ -936,7 +997,7 @@ export const IntelligenceHubView: React.FC = () => {
       ════════════════════════════════════════════════════════════════════ */}
       <section aria-labelledby="zone-a-title">
         <h2 id="zone-a-title" className="zone-title" style={{ marginBottom: 14 }}>
-          Key Metrics
+          {t("reports.keyMetrics")}
         </h2>
 
         <div
@@ -985,11 +1046,11 @@ export const IntelligenceHubView: React.FC = () => {
           }}
         >
           <ZoneHeader
-            title="Revenue Forecast"
-            subtitle="GRU+XGBoost · 3-month horizon · P25–P75 confidence band"
+            title={t("hub.revenueForecast")}
+            subtitle={t("hub.forecastSubtitle")}
             action={
               <div style={{ display: "flex", gap: 10 }}>
-                <ConfidenceLegend level="HIGH" note="Confidence" />
+                <ConfidenceLegend level="HIGH" note={t("risk.confidence")} />
               </div>
             }
           />
@@ -1022,7 +1083,7 @@ export const IntelligenceHubView: React.FC = () => {
                   borderColor: seg === activeSegment ? "rgba(94,106,210,0.25)" : "var(--p-hairline)",
                 }}
               >
-                {seg}
+                {translateSegment(seg)}
               </button>
             ))}
           </div>
@@ -1032,32 +1093,59 @@ export const IntelligenceHubView: React.FC = () => {
               className="skeleton"
               style={{ height: 320, borderRadius: 8, background: "var(--p-surface-2)" }}
             />
-          ) : (
-            <AreaChart
-              data={forecastBySegment[activeSegment] || forecastData}
-              index="month"
-              categories={[
-                "MRR",
-                "Forecast",
-                "Upper",
-                "Lower",
-              ]}
-              colors={["indigo", "violet", "slate", "slate"]}
-              valueFormatter={mrrFormatter}
-              /** FIX 4 — Revenue Forecast: remove duplicate internal legend */
-              showLegend={false}
-              showGridLines={true}
-              showAnimation={true}
-              connectNulls={false}
-              yAxisWidth={72}
-              minValue={undefined}
-              autoMinValue={true}
-              showGradient={false}
-              className="h-72"
-              customTooltip={CustomTooltip}
-              noDataText="Upload revenue data to unlock forecast"
-            />
-          )}
+          ) : (() => {
+            const mrrKey = t("hub.mrrLegend", "MRR");
+            const forecastKey = t("hub.forecast", "Forecast");
+            const upperKey = t("hub.upper", "Upper");
+            const lowerKey = t("hub.lower", "Lower");
+
+            const rawData = forecastBySegment[activeSegment] || forecastData;
+            const translatedForecastData = rawData.map((item: any) => {
+              const monthLabel = item.month.startsWith("M-")
+                ? t("hub.monthOffset", { count: parseInt(item.month.split("-")[1], 10) })
+                : (item.month === "Current" ? t("hub.current", "Current") : (item.month === "Next" ? t("hub.next", "Next") : item.month));
+
+              const mrrVal = item["MRR"] !== undefined ? item["MRR"] : item["Historical MRR"];
+              const forecastVal = item["Forecast"] !== undefined ? item["Forecast"] : item["Forecast (P50)"];
+              const upperVal = item["Upper"] !== undefined ? item["Upper"] : item["CI Upper"];
+              const lowerVal = item["Lower"] !== undefined ? item["Lower"] : item["CI Lower"];
+
+              return {
+                month: monthLabel,
+                [mrrKey]: mrrVal ?? null,
+                [forecastKey]: forecastVal ?? null,
+                [upperKey]: upperVal ?? null,
+                [lowerKey]: lowerVal ?? null,
+              };
+            });
+
+            return (
+              <AreaChart
+                data={translatedForecastData}
+                index="month"
+                categories={[
+                  mrrKey,
+                  forecastKey,
+                  upperKey,
+                  lowerKey,
+                ]}
+                colors={["indigo", "violet", "slate", "slate"]}
+                valueFormatter={mrrFormatter}
+                /** FIX 4 — Revenue Forecast: remove duplicate internal legend */
+                showLegend={false}
+                showGridLines={true}
+                showAnimation={true}
+                connectNulls={false}
+                yAxisWidth={72}
+                minValue={undefined}
+                autoMinValue={true}
+                showGradient={false}
+                className="h-72"
+                customTooltip={CustomTooltip}
+                noDataText={t("hub.noDataYet")}
+              />
+            );
+          })()}
 
           {/* Chart footnote */}
           <div
@@ -1071,9 +1159,9 @@ export const IntelligenceHubView: React.FC = () => {
           >
             {[
               /** FIX 2 — Match short series names */
-              { dot: "var(--p-primary)",  label: "MRR" },
-              { dot: "rgba(139,92,246,1)",label: "Forecast" },
-              { dot: "var(--p-ink-tertiary)", label: "CI Band" },
+              { dot: "var(--p-primary)",  label: t("hub.mrrLegend", "MRR") },
+              { dot: "rgba(139,92,246,1)",label: t("hub.forecast", "Forecast") },
+              { dot: "var(--p-ink-tertiary)", label: t("hub.ciBand", "CI Band") },
             ].map(({ dot, label }) => (
               <div
                 key={label}
@@ -1106,8 +1194,8 @@ export const IntelligenceHubView: React.FC = () => {
           }}
         >
           <ZoneHeader
-            title="Customer Personas"
-            subtitle="K-Means · 6 behavioural clusters"
+            title={t("hub.customerPersonas")}
+            subtitle={t("hub.personasSubtitle")}
           />
 
           {isLoading ? (
@@ -1117,7 +1205,7 @@ export const IntelligenceHubView: React.FC = () => {
             />
           ) : personaData.length === 0 ? (
             <div style={{ height: 256, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--p-ink-tertiary)", textAlign: "center" }}>
-              No cluster data yet — upload customer snapshot data to unlock personas
+              {t("hub.noDataYet")}
             </div>
           ) : (
             <>
@@ -1132,10 +1220,9 @@ export const IntelligenceHubView: React.FC = () => {
                 marginBottom: 12
               }}>
                 <span style={{ color: "var(--p-primary-hover)", fontWeight: 600 }}>
-                  How to read:
+                  {t("hub.howToRead")}
                 </span>
-                {" "}Each bubble = one customer cluster.
-                X = avg ARR, Y = churn risk %, bubble size = number of customers.
+                {" "}{t("hub.personasExplanation")}
               </div>
               <div style={{ marginLeft: 12, overflow: "visible" }}>
                 <ScatterChart
@@ -1149,13 +1236,13 @@ export const IntelligenceHubView: React.FC = () => {
                   showAnimation={true}
                   className="h-64"
                   valueFormatter={{
-                    "x": (v: number) => v >= 1000 ? `$${(v/1000).toFixed(1)}M ARR` : `$${v.toFixed(0)}K ARR`,
+                    "x": (v: number) => v >= 1000 ? `$${(v/1000).toFixed(1)}M ${t("pipeline.arr", "ARR")}` : `$${v.toFixed(0)}K ${t("pipeline.arr", "ARR")}`,
                     "y": (v: number) => `${v}%`,
-                    "z": (v: number) => `${v} customers`,
+                    "z": (v: number) => `${v} ${t("dataWorkspace.customers")}`,
                   }}
-                  xAxisLabel="ARR ($K)"
-                  yAxisLabel="Churn %"
-                  noDataText="Upload customer data to unlock persona analysis"
+                  xAxisLabel={t("hub.arrK", "ARR ($K)")}
+                  yAxisLabel={t("hub.churnPercent", "Churn %")}
+                  noDataText={t("hub.noDataYet")}
                 />
               </div>
             </>
@@ -1249,7 +1336,7 @@ export const IntelligenceHubView: React.FC = () => {
           >
             {/* Left: summary */}
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <span className="zone-title">Action Queue</span>
+              <span className="zone-title">{t("hub.actionQueue")}</span>
 
               {/* Summary counts when collapsed */}
               {!zoneD_expanded && (
@@ -1263,10 +1350,10 @@ export const IntelligenceHubView: React.FC = () => {
                         background:   "currentColor",
                       }}
                     />
-                    {actionQueueSummary.critical} critical
+                    {t("hub.criticalActions", { count: actionQueueSummary.critical })}
                   </span>
-                  <span className="status-pill warning">{actionQueueSummary.high} high</span>
-                  <span className="status-pill">{actionQueueSummary.medium} medium</span>
+                  <span className="status-pill warning">{t("hub.highActions", { count: actionQueueSummary.high })}</span>
+                  <span className="status-pill">{t("hub.mediumActions", { count: actionQueueSummary.medium })}</span>
                 </div>
               )}
             </div>
@@ -1293,7 +1380,7 @@ export const IntelligenceHubView: React.FC = () => {
                     marginTop: 1,
                   }}
                 >
-                  Total ARR Impact
+                  {t("hub.totalArrImpact")}
                 </div>
               </div>
 
@@ -1328,7 +1415,7 @@ export const IntelligenceHubView: React.FC = () => {
                   /** FIX 1 — navigate to pipeline */
                   onClick={() => navigate("/pipeline")}
                 >
-                  View all actions
+                  {t("hub.viewAllActions")}
                   <ArrowRight size={12} />
                 </button>
               </div>

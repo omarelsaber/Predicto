@@ -42,7 +42,9 @@
  */
 
 import React, { useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { useCounterfactualQuery } from "@/hooks/useGodTierQueries";
+import { tSegment } from "@/lib/personaMapping";
 import type { TreatmentType } from "@/types/enums";
 import type { CausalEngineMode as EngineMode, ConfidenceLevel, HeterogeneitySegment as HeterogeneityCluster } from "@/types/godtier/counterfactual";
 import {
@@ -73,7 +75,7 @@ import {
 /* =============================================================================
    ██████╗  █████╗ ████████╗ █████╗
    All mock data — replace with useCounterfactualQuery(treatment) to go live.
-============================================================================= */
+ ============================================================================= */
 
 /* ── Treatment options (mirrors TreatmentType enum) ─────────────────────── */
 
@@ -458,6 +460,7 @@ const TreatmentDropdown: React.FC<{
   value:    TreatmentType;
   onChange: (t: TreatmentType) => void;
 }> = ({ value, onChange }) => {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const options = Object.keys(TREATMENT_LABELS) as TreatmentType[];
 
@@ -488,7 +491,7 @@ const TreatmentDropdown: React.FC<{
       >
         <span style={{ display: "flex", alignItems: "center", gap: 7 }}>
           <FlaskConical size={13} color="var(--p-primary-hover)" strokeWidth={1.8} />
-          {TREATMENT_LABELS[value]}
+          {t(`causal.treatments.${value}`, { defaultValue: TREATMENT_LABELS[value] })}
         </span>
         <ChevronDown
           size={13}
@@ -550,7 +553,7 @@ const TreatmentDropdown: React.FC<{
                 <CheckCircle2 size={11} color="var(--p-primary-hover)" strokeWidth={2.5} />
               )}
               {opt !== value && <div style={{ width: 11 }} />}
-              {TREATMENT_LABELS[opt]}
+              {t(`causal.treatments.${opt}`, { defaultValue: TREATMENT_LABELS[opt] })}
             </button>
           ))}
         </div>
@@ -615,7 +618,9 @@ const AtePill: React.FC<{
 
 /* ── Cluster legend badge ─────────────────────────────────────────────────── */
 const ClusterBadge: React.FC<{ cluster: HeterogeneityCluster }> = ({ cluster }) => {
-  const { label, hex, bg, border } = CLUSTER_CONFIG[cluster];
+  const { t } = useTranslation();
+  const { hex, bg, border } = CLUSTER_CONFIG[cluster];
+  const label = t(`causal.clusters.${cluster}`, { defaultValue: CLUSTER_CONFIG[cluster].label });
   return (
     <span style={{
       display: "inline-flex", alignItems: "center", gap: 4,
@@ -699,20 +704,23 @@ const ArrDeltaCell: React.FC<{ delta: number }> = ({ delta }) => {
 };
 
 /* ── Treatment received badge ────────────────────────────────────────────── */
-const TreatmentBadge: React.FC<{ received: boolean }> = ({ received }) => (
-  <span style={{
-    display: "inline-flex", alignItems: "center", gap: 3,
-    padding: "2px 7px", borderRadius: "var(--radius-pill)",
-    background: received ? "rgba(39,166,68,0.08)" : "rgba(98,102,109,0.10)",
-    border:     received ? "1px solid rgba(39,166,68,0.20)" : "1px solid rgba(98,102,109,0.18)",
-    fontSize: 10, fontWeight: 500,
-    color:    received ? "#4ade80" : "var(--p-ink-tertiary)",
-    fontFamily: "var(--font-mono)",
-  }}>
-    {received ? <CheckCircle2 size={9} strokeWidth={2.5} /> : <Minus size={9} strokeWidth={2} />}
-    {received ? "Treated" : "Control"}
-  </span>
-);
+const TreatmentBadge: React.FC<{ received: boolean }> = ({ received }) => {
+  const { t } = useTranslation();
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 3,
+      padding: "2px 7px", borderRadius: "var(--radius-pill)",
+      background: received ? "rgba(39,166,68,0.08)" : "rgba(98,102,109,0.10)",
+      border:     received ? "1px solid rgba(39,166,68,0.20)" : "1px solid rgba(98,102,109,0.18)",
+      fontSize: 10, fontWeight: 500,
+      color:    received ? "#4ade80" : "var(--p-ink-tertiary)",
+      fontFamily: "var(--font-mono)",
+    }}>
+      {received ? <CheckCircle2 size={9} strokeWidth={2.5} /> : <Minus size={9} strokeWidth={2} />}
+      {received ? t("causal.status.treated") : t("causal.status.control")}
+    </span>
+  );
+};
 
 /* =============================================================================
    MAIN VIEW
@@ -746,6 +754,7 @@ const computeHistogram = (cates: {cate: number}[]) => {
 };
 
 export const CausalEngineView: React.FC = () => {
+  const { t } = useTranslation();
   const [treatment, setTreatment] = useState<TreatmentType>("DISCOUNT_APPLIED");
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -805,12 +814,12 @@ export const CausalEngineView: React.FC = () => {
   const scatterSeries = useMemo(
     () =>
       heteroPoints.map((p) => ({
-        category: p.label,
+        category: t(`causal.clusters.${p.cluster}`, { defaultValue: p.label }),
         x: p.mean_arr_k,
         y: +(p.mean_cate * 100).toFixed(2),
         size: p.n_customers,
       })),
-    [heteroPoints]
+    [heteroPoints, t]
   );
 
   const scatterColors = useMemo(
@@ -821,14 +830,16 @@ export const CausalEngineView: React.FC = () => {
   /* ── Histogram shaped for Tremor BarChart ────────────────────────────────── */
   // Tremor BarChart: data is array of objects; categories = ["count"]
   // We colour negative bars emerald and positive bars red by splitting into two series
+  const beneficialLabel = t("causal.beneficialShort", { defaultValue: "Beneficial" });
+  const harmfulLabel = t("causal.harmfulShort", { defaultValue: "Harmful" });
   const histDataNeg = useMemo(
     () =>
       histBuckets.map((b) => ({
         bucket:       b.bucket,
-        "Beneficial": b.midpoint < 0 ? b.count : 0,
-        "Harmful":    b.midpoint >= 0 ? b.count : 0,
+        [beneficialLabel]: b.midpoint < 0 ? b.count : 0,
+        [harmfulLabel]:    b.midpoint >= 0 ? b.count : 0,
       })),
-    [histBuckets]
+    [histBuckets, beneficialLabel, harmfulLabel]
   );
 
   const handleRefresh = () => {
@@ -891,7 +902,7 @@ export const CausalEngineView: React.FC = () => {
               <Atom size={15} color="var(--p-primary-hover)" strokeWidth={1.6} />
             </div>
             <h1 className="t-headline" style={{ color: "var(--p-ink)", margin: 0 }}>
-              Causal Engine
+              {t("causal.title")}
             </h1>
             {/* Engine mode badge */}
             <span style={{
@@ -902,14 +913,14 @@ export const CausalEngineView: React.FC = () => {
               textTransform: "uppercase", color: engineConf.color,
               fontFamily: "var(--font-mono)",
             }}>
-              {engineConf.label}
+              {t(`causal.engineModes.${summary.engine_mode}`, { defaultValue: engineConf.label })}
             </span>
           </div>
           <p style={{
             fontSize: 13, color: "var(--p-ink-tertiary)", margin: 0,
             fontFamily: "var(--font-body)", lineHeight: 1.5,
           }}>
-            Double Machine Learning · Conditional Average Treatment Effects · 95% CI
+            {t("causal.subtitle")}
           </p>
         </div>
 
@@ -919,13 +930,13 @@ export const CausalEngineView: React.FC = () => {
             fontSize: 12, color: "var(--p-ink-tertiary)", fontFamily: "var(--font-body)",
             whiteSpace: "nowrap",
           }}>
-            Treatment:
+            {t("causal.treatment")}
           </span>
           <TreatmentDropdown value={treatment} onChange={setTreatment} />
           <button
             className="btn-icon"
             onClick={handleRefresh}
-            title="Re-estimate"
+            title={t("causal.reEstimate")}
             style={{ color: isRefreshing ? "var(--p-primary-hover)" : undefined }}
           >
             <RefreshCw
@@ -942,36 +953,36 @@ export const CausalEngineView: React.FC = () => {
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
         {/* ATE value */}
         <AtePill
-          label="Avg Treatment Effect (ATE)"
+          label={t("causal.avgTreatmentEffect")}
           value={formatCate(summary.ate)}
-          sub={`95% CI [${formatCate(summary.ate_lower_ci)}, ${formatCate(summary.ate_upper_ci)}]`}
+          sub={t("causal.ateCI", { lower: formatCate(summary.ate_lower_ci), upper: formatCate(summary.ate_upper_ci) })}
           color={ateColor}
           iconBg={ateIsNegative ? "rgba(39,166,68,0.10)" : "rgba(229,72,77,0.10)"}
           Icon={ateIsNegative ? TrendingDown : TrendingUp}
         />
         {/* Foregone ARR */}
         <AtePill
-          label="Total Foregone ARR"
+          label={t("causal.totalForegoneArr")}
           value={formatCurrency(summary.total_foregone_arr)}
-          sub="from sub-optimal interventions"
+          sub={t("causal.subOptimalInterventions")}
           color="#828fff"
           iconBg="rgba(94,106,210,0.10)"
           Icon={BarChart2}
         />
         {/* Sample */}
         <AtePill
-          label="Treated / Control"
+          label={t("causal.treatedControl")}
           value={`${summary.n_treated} / ${summary.n_control}`}
-          sub={`N = ${summary.n_treated + summary.n_control} customers`}
+          sub={t("causal.nCustomers", { count: summary.n_treated + summary.n_control })}
           color="var(--p-ink-muted)"
           iconBg="var(--p-surface-2)"
           Icon={Users}
         />
         {/* Nuisance quality */}
         <AtePill
-          label="Outcome R² / AUROC"
+          label={t("causal.outcomeR2Auroc")}
           value={`${summary.outcome_r2.toFixed(2)} / ${summary.propensity_auroc.toFixed(2)}`}
-          sub="nuisance model quality"
+          sub={t("causal.nuisanceModelQuality")}
           color={summary.outcome_r2 > 0.5 ? "#4ade80" : "#fbbf24"}
           iconBg={summary.outcome_r2 > 0.5 ? "rgba(39,166,68,0.10)" : "rgba(232,163,10,0.10)"}
           Icon={Info}
@@ -995,13 +1006,13 @@ export const CausalEngineView: React.FC = () => {
               textTransform: "uppercase", color: "var(--p-ink-tertiary)",
               fontFamily: "var(--font-body)",
             }}>
-              Confidence
+              {t("causal.confidence")}
             </div>
             <div style={{
               fontFamily: "var(--font-mono)", fontSize: 13, fontWeight: 600,
               color: CONFIDENCE_COLOR[summary.overall_confidence],
             }}>
-              {summary.overall_confidence}
+              {t(`causal.confidenceLevels.${summary.overall_confidence}`, { defaultValue: summary.overall_confidence })}
             </div>
           </div>
         </div>
@@ -1026,12 +1037,13 @@ export const CausalEngineView: React.FC = () => {
           gap:           14,
         }}>
           <ZoneHeader
-            title="Heterogeneity Map"
-            subtitle="X: Mean ARR ($K)  ·  Y: Mean CATE (pp shift)  ·  Size: n customers"
+            title={t("causal.mapTitle")}
+            subtitle={t("causal.mapSubtitle")}
             action={
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                 {(Object.keys(CLUSTER_CONFIG) as HeterogeneityCluster[]).map((k) => {
-                  const { label, hex, bg, border } = CLUSTER_CONFIG[k];
+                  const { hex, bg, border } = CLUSTER_CONFIG[k];
+                  const label = t(`causal.clusters.${k}`, { defaultValue: CLUSTER_CONFIG[k].label });
                   return (
                     <span key={k} style={{
                       display: "inline-flex", alignItems: "center", gap: 4,
@@ -1049,7 +1061,7 @@ export const CausalEngineView: React.FC = () => {
             }
           />
 
-          <div style={{ flex: 1, minHeight: 280 }}>
+          <div style={{ flex: 1, minHeight: 280 }} dir="ltr">
             <ScatterChart
               className="h-72"
               data={scatterSeries}
@@ -1061,7 +1073,7 @@ export const CausalEngineView: React.FC = () => {
               valueFormatter={{
                 x: (v: number) => `$${v.toFixed(0)}K`,
                 y: (v: number) => `${v > 0 ? "+" : ""}${v.toFixed(1)}pp`,
-                size: (v: number) => `${v} customers`
+                size: (v: number) => t("causal.nCustomersScatter", { count: v })
               }}
               showLegend={false}
               showGridLines={true}
@@ -1097,7 +1109,7 @@ export const CausalEngineView: React.FC = () => {
                       fontSize: 11, fontWeight: 500, color: "var(--p-ink-muted)",
                       fontFamily: "var(--font-body)", whiteSpace: "nowrap",
                     }}>
-                      {p.label}
+                      {t(`causal.clusters.${p.cluster}`, { defaultValue: p.label })}
                     </span>
                     <span style={{ fontSize: 10, color: "var(--p-ink-tertiary)", fontFamily: "var(--font-body)" }}>
                       {p.segments}
@@ -1143,8 +1155,8 @@ export const CausalEngineView: React.FC = () => {
           gap:           14,
         }}>
           <ZoneHeader
-            title="CATE Distribution"
-            subtitle={`${summary.n_treated + summary.n_control} customers · ${TREATMENT_LABELS[treatment]}`}
+            title={t("causal.distTitle")}
+            subtitle={t("causal.distSubtitle", { count: summary.n_treated + summary.n_control, treatment: t(`causal.treatments.${treatment}`, { defaultValue: TREATMENT_LABELS[treatment] }) })}
             action={
               <div style={{ display: "flex", gap: 10 }}>
                 <span style={{
@@ -1153,7 +1165,7 @@ export const CausalEngineView: React.FC = () => {
                   fontFamily: "var(--font-body)",
                 }}>
                   <span style={{ width: 8, height: 8, borderRadius: 2, background: "#4ade8060", border: "1px solid #4ade8090", flexShrink: 0 }} />
-                  Beneficial (CATE &lt; 0)
+                  {t("causal.beneficial")}
                 </span>
                 <span style={{
                   display: "inline-flex", alignItems: "center", gap: 4,
@@ -1161,7 +1173,7 @@ export const CausalEngineView: React.FC = () => {
                   fontFamily: "var(--font-body)",
                 }}>
                   <span style={{ width: 8, height: 8, borderRadius: 2, background: "#f8717160", border: "1px solid #f8717190", flexShrink: 0 }} />
-                  Harmful (CATE ≥ 0)
+                  {t("causal.harmful")}
                 </span>
               </div>
             }
@@ -1181,15 +1193,13 @@ export const CausalEngineView: React.FC = () => {
               fontSize: 11, color: "var(--p-ink-tertiary)",
               fontFamily: "var(--font-body)",
             }}>
-              ATE = <span style={{ color: ateColor, fontFamily: "var(--font-mono)", fontWeight: 600 }}>
-                {formatCate(summary.ate)}
-              </span>
-              {" "}· 95% CI [{formatCate(summary.ate_lower_ci)}, {formatCate(summary.ate_upper_ci)}]
-              {" "}· {ateIsNegative ? "Treatment reduces churn on average" : "Treatment increases churn on average — review immediately"}
+              {t("causal.ateEqual", { ate: formatCate(summary.ate) })}
+              {" "}· {t("causal.ateCI", { lower: formatCate(summary.ate_lower_ci), upper: formatCate(summary.ate_upper_ci) })}
+              {" "}· {ateIsNegative ? t("causal.ateReduces") : t("causal.ateIncreases")}
             </span>
           </div>
 
-          <div style={{ flex: 1, minHeight: 288, overflowX: "hidden" }}>
+          <div style={{ flex: 1, minHeight: 288, overflowX: "hidden" }} dir="ltr">
             <div style={{
               fontSize: 10,
               color: "var(--p-ink-tertiary)",
@@ -1199,13 +1209,13 @@ export const CausalEngineView: React.FC = () => {
               marginBottom: 6,
               paddingLeft: 4,
             }}>
-              ↑ n customers
+              ↑ {t("causal.customersCount")}
             </div>
             <BarChart
               className="h-72"
               data={histDataNeg}
               index="bucket"
-              categories={["Beneficial", "Harmful"]}
+              categories={[beneficialLabel, harmfulLabel]}
               colors={["emerald", "red"]}
               showLegend={false}
               showGridLines={true}
@@ -1224,17 +1234,17 @@ export const CausalEngineView: React.FC = () => {
           }}>
             {[
               {
-                label: "Beneficial (CATE < 0)",
+                label: t("causal.beneficial"),
                 value: histBuckets.filter((b) => b.midpoint < 0).reduce((s, b) => s + b.count, 0),
                 color: "#4ade80",
               },
               {
-                label: "Harmful (CATE ≥ 0)",
+                label: t("causal.harmful"),
                 value: histBuckets.filter((b) => b.midpoint >= 0).reduce((s, b) => s + b.count, 0),
                 color: "#f87171",
               },
               {
-                label: "Near zero (|CATE| < 0.05)",
+                label: t("causal.nearZero"),
                 value: histBuckets.filter((b) => Math.abs(b.midpoint) < 0.05).reduce((s, b) => s + b.count, 0),
                 color: "var(--p-ink-subtle)",
               },
@@ -1263,8 +1273,8 @@ export const CausalEngineView: React.FC = () => {
       ════════════════════════════════════════════════════════════════════════ */}
       <section>
         <ZoneHeader
-          title="Customer CATE Estimates"
-          subtitle="Sorted by |CATE| descending · 95% confidence intervals from Double ML residuals"
+          title={t("causal.tableTitle")}
+          subtitle={t("causal.tableSubtitle")}
           action={
             <span style={{
               fontFamily: "var(--font-mono)", fontSize: 11,
@@ -1272,7 +1282,7 @@ export const CausalEngineView: React.FC = () => {
               display: "flex", alignItems: "center", gap: 5,
             }}>
               <CheckCircle2 size={11} color="var(--p-success)" strokeWidth={2.5} />
-              {tableRows.length} customers · K-fold cross-fitted
+              {t("causal.tableBadge", { count: tableRows.length })}
             </span>
           }
         />
@@ -1288,15 +1298,15 @@ export const CausalEngineView: React.FC = () => {
             <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 920 }}>
               <thead>
                 <tr>
-                  <th style={{ ...TH, width: 44, textAlign: "center" }}>#</th>
-                  <th style={TH}>Customer</th>
-                  <th style={TH}>Segment</th>
-                  <th style={TH}>Status</th>
-                  <th style={{ ...TH, textAlign: "right" }}>ARR</th>
-                  <th style={{ ...TH, textAlign: "right" }}>CATE</th>
-                  <th style={TH}>95% CI Bar</th>
-                  <th style={{ ...TH, textAlign: "right" }}>ARR Δ</th>
-                  <th style={TH}>Response</th>
+                  <th style={{ ...TH, width: 44, textAlign: "center" }}>{t("causal.headers.rank")}</th>
+                  <th style={TH}>{t("causal.headers.customer")}</th>
+                  <th style={TH}>{t("causal.headers.segment")}</th>
+                  <th style={TH}>{t("causal.headers.status")}</th>
+                  <th style={{ ...TH, textAlign: "right" }}>{t("causal.headers.arr")}</th>
+                  <th style={{ ...TH, textAlign: "right" }}>{t("causal.headers.cate")}</th>
+                  <th style={TH}>{t("causal.headers.ciBar")}</th>
+                  <th style={{ ...TH, textAlign: "right" }}>{t("causal.headers.arrDelta")}</th>
+                  <th style={TH}>{t("causal.headers.response")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -1360,7 +1370,7 @@ export const CausalEngineView: React.FC = () => {
                           background: seg.bg, color: seg.text, border: `1px solid ${seg.border}`,
                           fontFamily: "var(--font-body)", whiteSpace: "nowrap",
                         }}>
-                          {row.segment}
+                          {tSegment(row.segment)}
                         </span>
                       </td>
 
@@ -1429,12 +1439,14 @@ export const CausalEngineView: React.FC = () => {
             gap:            8,
           }}>
             <span style={{ fontSize: 11, color: "var(--p-ink-tertiary)", fontFamily: "var(--font-body)" }}>
-              Showing top {tableRows.length} customers by |CATE|
-              · <span style={{ fontFamily: "var(--font-mono)" }}>{summary.engine_mode}</span>
-              · {summary.n_treated + summary.n_control} total in cohort
+              {t("causal.footerShowing", {
+                count: tableRows.length,
+                engineMode: t(`causal.engineModes.${summary.engine_mode}` as any, { defaultValue: summary.engine_mode }),
+                total: summary.n_treated + summary.n_control
+              })}
             </span>
             <span style={{ fontSize: 11, color: "var(--p-ink-tertiary)", fontFamily: "var(--font-mono)" }}>
-              ATE&nbsp;
+              {t("causal.footerAte")}&nbsp;
               <span style={{ color: ateColor, fontWeight: 600 }}>
                 {formatCate(summary.ate)}
               </span>

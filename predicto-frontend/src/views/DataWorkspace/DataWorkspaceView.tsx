@@ -19,6 +19,7 @@
  */
 
 import React, { useState, useCallback, useRef, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Card,
   Table,
@@ -163,6 +164,7 @@ export interface DropzoneProps {
 }
 
 const IngestDropzone: React.FC<DropzoneProps> = ({ dropState, fileName, progress, onFileSelected, onReset }) => {
+  const { t } = useTranslation();
   const [isHovering, setIsHovering] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -241,7 +243,7 @@ const IngestDropzone: React.FC<DropzoneProps> = ({ dropState, fileName, progress
           textAlign: "center",
         }}
       >
-        {dropState === "hovering" ? "Release to begin ingestion" : "Drop your ZIP file here"}
+        {dropState === "hovering" ? t("dataWorkspace.dropzone.release") : t("dataWorkspace.dropzone.dropZip")}
       </p>
 
       {/* Sub-line */}
@@ -255,7 +257,7 @@ const IngestDropzone: React.FC<DropzoneProps> = ({ dropState, fileName, progress
           letterSpacing: "0.1px",
         }}
       >
-        Accepted: .zip, .csv, .json (Max 500MB)
+        {t("dataWorkspace.dropzone.acceptedFormats")}
       </p>
 
       {/* Pill CTA */}
@@ -266,7 +268,7 @@ const IngestDropzone: React.FC<DropzoneProps> = ({ dropState, fileName, progress
         type="button"
       >
         <Upload size={13} />
-        Browse file
+        {t("dataWorkspace.dropzone.browseFile")}
       </button>
     </>
   );
@@ -292,7 +294,7 @@ const IngestDropzone: React.FC<DropzoneProps> = ({ dropState, fileName, progress
         />
       </div>
       <p style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--p-ink-tertiary)" }}>
-        {progress.toFixed(0)}% — validating schema…
+        {progress.toFixed(0)}% — {t("dataWorkspace.dropzone.validating")}
       </p>
     </div>
   );
@@ -302,7 +304,7 @@ const IngestDropzone: React.FC<DropzoneProps> = ({ dropState, fileName, progress
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
       <CheckCircle2 size={36} color="#4ade80" style={{ filter: "drop-shadow(0 0 8px rgba(74,222,128,0.4))" }} />
       <p style={{ fontFamily: "var(--font-display)", fontSize: 14, fontWeight: 500, color: "#4ade80", letterSpacing: "-0.1px" }}>
-        Ingest complete
+        {t("dataWorkspace.dropzone.complete")}
       </p>
       <p style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--p-ink-tertiary)", textAlign: "center" }}>
         {fileName}
@@ -314,7 +316,7 @@ const IngestDropzone: React.FC<DropzoneProps> = ({ dropState, fileName, progress
         type="button"
       >
         <RefreshCw size={11} />
-        Upload another
+        {t("dataWorkspace.dropzone.uploadAnother")}
       </button>
     </div>
   );
@@ -360,7 +362,7 @@ const IngestDropzone: React.FC<DropzoneProps> = ({ dropState, fileName, progress
       onClick={() => { if (dropState === "idle" || dropState === "error") inputRef.current?.click(); }}
       role="button"
       tabIndex={0}
-      aria-label="Drag and drop a ZIP file to ingest"
+      aria-label={t("dataWorkspace.dropzone.ariaLabel")}
       onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && (dropState === "idle" || dropState === "error")) inputRef.current?.click(); }}
     >
       {/* subtle grid overlay */}
@@ -397,6 +399,7 @@ const IngestDropzone: React.FC<DropzoneProps> = ({ dropState, fileName, progress
    ───────────────────────────────────────────────────────────────────────────── */
 
 export const TerminalFeed: React.FC<{ logs: LogEntry[], running: boolean }> = ({ logs, running }) => {
+  const { t } = useTranslation();
   const bottomRef = useRef<HTMLDivElement>(null);
 
   /* Auto-scroll to bottom */
@@ -441,7 +444,7 @@ export const TerminalFeed: React.FC<{ logs: LogEntry[], running: boolean }> = ({
         <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
           <Terminal size={11} color="#62666d" />
           <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "#62666d", letterSpacing: "0.3px" }}>
-            predicto-ingest · console
+            {t("dataWorkspace.console.consoleLabel")}
           </span>
         </div>
 
@@ -468,12 +471,12 @@ export const TerminalFeed: React.FC<{ logs: LogEntry[], running: boolean }> = ({
                   animation: "pulse 1s ease-in-out infinite",
                 }}
               />
-              LIVE
+              {t("dataWorkspace.console.live")}
             </span>
           )}
           {!running && (
             <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "#62666d", letterSpacing: "0.4px" }}>
-              COMPLETE
+              {t("dataWorkspace.console.complete")}
             </span>
           )}
         </div>
@@ -501,7 +504,9 @@ export const TerminalFeed: React.FC<{ logs: LogEntry[], running: boolean }> = ({
             }}
           >
             <span style={logTimestampStyle()}>{log.ts}</span>
-            <span style={logTextStyle(log.level)}>{log.message}</span>
+            <span style={logTextStyle(log.level)}>
+              {log.translationKey ? t(log.translationKey, log.translationOptions) : log.message}
+            </span>
           </div>
         ))}
 
@@ -539,28 +544,29 @@ export const TerminalFeed: React.FC<{ logs: LogEntry[], running: boolean }> = ({
    ───────────────────────────────────────────────────────────────────────────── */
 
 const DegradationLogTable: React.FC<{ data: DegradationRow[] }> = ({ data }) => {
+  const { t } = useTranslation();
   return (
     <div style={{ width: "100%", overflowX: "auto" }}>
       <Table>
         <TableHead>
           <TableRow>
             <TableHeaderCell style={{ color: "var(--p-ink-tertiary)", fontFamily: "var(--font-body)", fontSize: 11, letterSpacing: "0.4px", textTransform: "uppercase", fontWeight: 500 }}>
-              Table
+              {t("dataWorkspace.degradationTable.headers.table")}
             </TableHeaderCell>
             <TableHeaderCell style={{ color: "var(--p-ink-tertiary)", fontFamily: "var(--font-body)", fontSize: 11, letterSpacing: "0.4px", textTransform: "uppercase", fontWeight: 500 }}>
-              Column
+              {t("dataWorkspace.degradationTable.headers.column")}
             </TableHeaderCell>
             <TableHeaderCell style={{ color: "var(--p-ink-tertiary)", fontFamily: "var(--font-body)", fontSize: 11, letterSpacing: "0.4px", textTransform: "uppercase", fontWeight: 500 }}>
-              Strategy
+              {t("dataWorkspace.degradationTable.headers.strategy")}
             </TableHeaderCell>
             <TableHeaderCell style={{ color: "var(--p-ink-tertiary)", fontFamily: "var(--font-body)", fontSize: 11, letterSpacing: "0.4px", textTransform: "uppercase", fontWeight: 500, textAlign: "right" }}>
-              Count
+              {t("dataWorkspace.degradationTable.headers.count")}
             </TableHeaderCell>
             <TableHeaderCell style={{ color: "var(--p-ink-tertiary)", fontFamily: "var(--font-body)", fontSize: 11, letterSpacing: "0.4px", textTransform: "uppercase", fontWeight: 500 }}>
-              Severity
+              {t("dataWorkspace.degradationTable.headers.severity")}
             </TableHeaderCell>
             <TableHeaderCell style={{ color: "var(--p-ink-tertiary)", fontFamily: "var(--font-body)", fontSize: 11, letterSpacing: "0.4px", textTransform: "uppercase", fontWeight: 500 }}>
-              Resolution
+              {t("dataWorkspace.degradationTable.headers.resolution")}
             </TableHeaderCell>
           </TableRow>
         </TableHead>
@@ -569,7 +575,7 @@ const DegradationLogTable: React.FC<{ data: DegradationRow[] }> = ({ data }) => 
              <TableRow>
                <TableCell colSpan={6}>
                  <div style={{ padding: "20px", textAlign: "center", color: "var(--p-ink-tertiary)", fontFamily: "var(--font-body)", fontSize: 13 }}>
-                    No degradation events detected.
+                    {t("dataWorkspace.degradationTable.noEvents")}
                  </div>
                </TableCell>
              </TableRow>
@@ -608,14 +614,14 @@ const DegradationLogTable: React.FC<{ data: DegradationRow[] }> = ({ data }) => 
                 </TableCell>
                 <TableCell>
                   <Badge color={sev.color} size="xs">
-                    {sev.label}
+                    {t("dataWorkspace.degradationTable.severity." + sev.label)}
                   </Badge>
                 </TableCell>
                 <TableCell>
                   <Badge color={res.color} size="xs">
-                    {res.label}
+                    {t("dataWorkspace.degradationTable.resolution." + res.label.toLowerCase())}
                   </Badge>
-                  <span style={{ marginLeft: 8, fontFamily: "var(--font-body)", fontSize: 12, color: "var(--p-ink-subtle)" }}>
+                  <span style={{ marginInlineStart: 8, fontFamily: "var(--font-body)", fontSize: 12, color: "var(--p-ink-subtle)" }}>
                     {row.strategy}
                   </span>
                 </TableCell>
@@ -633,6 +639,7 @@ const DegradationLogTable: React.FC<{ data: DegradationRow[] }> = ({ data }) => 
    ───────────────────────────────────────────────────────────────────────────── */
 
 const DataPreviewTable: React.FC<{ data: any[] }> = ({ data }) => {
+  const { t } = useTranslation();
   return (
     <div style={{ width: "100%", overflowX: "auto" }}>
       {/* File chip */}
@@ -643,12 +650,12 @@ const DataPreviewTable: React.FC<{ data: any[] }> = ({ data }) => {
         </span>
         <span className="status-pill success">
           <CheckCircle2 size={10} />
-          Schema validated
+          {t("dataWorkspace.previewTable.schemaValidated")}
         </span>
-        <span style={{ marginLeft: "auto" }}>
+        <span style={{ marginInlineStart: "auto" }}>
           <button className="btn btn-secondary" style={{ fontSize: 12, padding: "5px 12px", minHeight: 30 }}>
             <Download size={11} />
-            Export CSV
+            {t("dataWorkspace.previewTable.exportCsv")}
           </button>
         </span>
       </div>
@@ -657,16 +664,16 @@ const DataPreviewTable: React.FC<{ data: any[] }> = ({ data }) => {
         <TableHead>
           <TableRow>
             {[
-              "Opportunity ID",
-              "Account Name",
-              "Rep",
-              "Stage",
-              "Amount (USD)",
-              "ARR (USD)",
-              "Close Date",
-              "Region",
-              "Tier",
-              "Win Prob.",
+              t("dataWorkspace.previewTable.headers.opportunityId"),
+              t("dataWorkspace.previewTable.headers.accountName"),
+              t("dataWorkspace.previewTable.headers.rep"),
+              t("dataWorkspace.previewTable.headers.stage"),
+              t("dataWorkspace.previewTable.headers.amountUsd"),
+              t("dataWorkspace.previewTable.headers.arrUsd"),
+              t("dataWorkspace.previewTable.headers.closeDate"),
+              t("dataWorkspace.previewTable.headers.region"),
+              t("dataWorkspace.previewTable.headers.tier"),
+              t("dataWorkspace.previewTable.headers.winProb"),
             ].map((h) => (
               <TableHeaderCell
                 key={h}
@@ -690,7 +697,7 @@ const DataPreviewTable: React.FC<{ data: any[] }> = ({ data }) => {
             <TableRow>
               <TableCell colSpan={10}>
                 <div style={{ padding: "20px", textAlign: "center", color: "var(--p-ink-tertiary)", fontFamily: "var(--font-body)", fontSize: 13 }}>
-                   Preview not available for this batch.
+                   {t("dataWorkspace.previewTable.noPreview")}
                 </div>
               </TableCell>
             </TableRow>
@@ -714,22 +721,22 @@ const DataPreviewTable: React.FC<{ data: any[] }> = ({ data }) => {
               >
                 <TableCell>
                   <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--p-primary-hover)" }}>
-                    {row.deal_id || row.opportunity_id || "Unknown"}
+                    {row.deal_id || row.opportunity_id || t("dataWorkspace.previewTable.unknown")}
                   </span>
                 </TableCell>
                 <TableCell>
                   <span style={{ fontFamily: "var(--font-body)", fontSize: 13, color: "var(--p-ink)", fontWeight: 500 }}>
-                    {row.account_name || row.account || "Unknown"}
+                    {row.account_name || row.account || t("dataWorkspace.previewTable.unknown")}
                   </span>
                 </TableCell>
                 <TableCell>
                   <span style={{ fontFamily: "var(--font-body)", fontSize: 13, color: "var(--p-ink-muted)" }}>
-                    {row.sales_rep || row.rep_name || "Unknown"}
+                    {row.sales_rep || row.rep_name || t("dataWorkspace.previewTable.unknown")}
                   </span>
                 </TableCell>
                 <TableCell>
                   <Badge color={stageBadgeColor(row.win_loss_status || row.stage)} size="xs">
-                    {String(row.win_loss_status || row.stage || "Unknown")}
+                    {String(row.win_loss_status || row.stage || t("dataWorkspace.previewTable.unknown"))}
                   </Badge>
                 </TableCell>
                 <TableCell>
@@ -773,12 +780,12 @@ const DataPreviewTable: React.FC<{ data: any[] }> = ({ data }) => {
                                              "rgba(255,255,255,0.10)"),
                     }}
                   >
-                    {row.region || "Unknown"}
+                    {row.region || t("dataWorkspace.previewTable.unknown")}
                   </span>
                 </TableCell>
                 <TableCell>
                   <span style={{ fontFamily: "var(--font-body)", fontSize: 12, color: "var(--p-ink-subtle)" }}>
-                    {row.product_tier || row.tier || "Unknown"}
+                    {row.product_tier || row.tier || t("dataWorkspace.previewTable.unknown")}
                   </span>
                 </TableCell>
                 <TableCell>
@@ -807,11 +814,12 @@ const DataPreviewTable: React.FC<{ data: any[] }> = ({ data }) => {
    ───────────────────────────────────────────────────────────────────────────── */
 
 const DataWorkspaceView: React.FC = () => {
+  const { t } = useTranslation();
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [activeTab, setActiveTab]       = useState<number>(0);
 
   const [logs, setLogs] = useState<LogEntry[]>([
-    { id: 1, ts: new Date().toLocaleTimeString([], { hour12: false }), level: "info", message: "Predicto Engine v3.0 ready. Awaiting payload..." }
+    { id: 1, ts: new Date().toLocaleTimeString([], { hour12: false }), level: "info", message: "Predicto Engine v3.0 ready. Awaiting payload...", translationKey: "dataWorkspace.console.ready" }
   ]);
   const [degradations, setDegradations] = useState<DegradationRow[]>([]);
   const [previews, setPreviews] = useState<any[]>([]);
@@ -824,7 +832,7 @@ const DataWorkspaceView: React.FC = () => {
      setDropState("idle");
      setUploadedFile(null);
      setProgress(0);
-     setLogs([{ id: 1, ts: new Date().toLocaleTimeString([], { hour12: false }), level: "info", message: "Predicto Engine v3.0 ready. Awaiting payload..." }]);
+     setLogs([{ id: 1, ts: new Date().toLocaleTimeString([], { hour12: false }), level: "info", message: "Predicto Engine v3.0 ready. Awaiting payload...", translationKey: "dataWorkspace.console.ready" }]);
      setDegradations([]);
      setPreviews([]);
      setStats({ tables: 0, degradationCount: 0, missing: 0 });
@@ -851,7 +859,9 @@ const DataWorkspaceView: React.FC = () => {
                 id: Date.now(),
                 ts: new Date().toLocaleTimeString([], { hour12: false }),
                 level: "success",
-                message: `✓ Reconnected to active session. Health Score: ${healthData.health_score}`
+                message: `✓ Reconnected to active session. Health Score: ${healthData.health_score}`,
+                translationKey: "dataWorkspace.console.reconnected",
+                translationOptions: { score: healthData.health_score }
               }
             ]);
             setDropState("complete");
@@ -869,23 +879,23 @@ const DataWorkspaceView: React.FC = () => {
     setDropState("uploading");
     setProgress(10);
     
-    const addLog = (level: LogLevel, message: string) => {
-      setLogs(prev => [...prev, { id: Date.now() + Math.random(), ts: new Date().toLocaleTimeString([], { hour12: false }), level, message }]);
+    const addLog = (level: LogLevel, message: string, translationKey?: string, translationOptions?: any) => {
+      setLogs(prev => [...prev, { id: Date.now() + Math.random(), ts: new Date().toLocaleTimeString([], { hour12: false }), level, message, translationKey, translationOptions }]);
     };
 
-    addLog("info", `Incoming upload: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
-    addLog("muted", "Initiating ingestion pipeline...");
+    addLog("info", `Incoming upload: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`, "dataWorkspace.console.incoming", { name: file.name, size: (file.size / 1024 / 1024).toFixed(2) });
+    addLog("muted", "Initiating ingestion pipeline...", "dataWorkspace.console.initiating");
 
     const timeouts: number[] = [];
-    const addTimeoutLog = (level: LogLevel, message: string, delay: number) => {
-      const id = window.setTimeout(() => addLog(level, message), delay);
+    const addTimeoutLog = (level: LogLevel, message: string, delay: number, translationKey?: string) => {
+      const id = window.setTimeout(() => addLog(level, message, translationKey), delay);
       timeouts.push(id);
     };
 
-    addTimeoutLog("info", "Extracting artifacts...", 800);
-    addTimeoutLog("info", "Running LLM Schema Alignment (Groq)...", 2200);
-    addTimeoutLog("info", "Applying schema degradation...", 3800);
-    addTimeoutLog("info", "Fitting Hybrid Fusion Model...", 5500);
+    addTimeoutLog("info", "Extracting artifacts...", 800, "dataWorkspace.console.extracting");
+    addTimeoutLog("info", "Running LLM Schema Alignment (Groq)...", 2200, "dataWorkspace.console.aligning");
+    addTimeoutLog("info", "Applying schema degradation...", 3800, "dataWorkspace.console.applyingDegradation");
+    addTimeoutLog("info", "Fitting Hybrid Fusion Model...", 5500, "dataWorkspace.console.fittingModel");
 
     const formData = new FormData();
     formData.append("files", file);
@@ -909,20 +919,20 @@ const DataWorkspaceView: React.FC = () => {
       setProgress(80);
       const data = await res.json();
       
-      addLog("success", `✓ Upload complete! Health Score: ${data.health_score}`);
+      addLog("success", `✓ Upload complete! Health Score: ${data.health_score}`, "dataWorkspace.console.uploadComplete", { score: data.health_score });
       addLog("info", data.message);
       
       if (data.tables_loaded && data.tables_loaded.length > 0) {
-          addLog("muted", `Tables loaded: ${data.tables_loaded.join(", ")}`);
+          addLog("muted", `Tables loaded: ${data.tables_loaded.join(", ")}`, "dataWorkspace.console.tablesLoaded", { tables: data.tables_loaded.join(", ") });
       }
 
-      addLog("muted", "Fetching degradation log...");
+      addLog("muted", "Fetching degradation log...", "dataWorkspace.console.fetchingLogs");
       const healthRes = await fetch(`${API_URL}/api/v2/data/health`);
       if (healthRes.ok) {
         const healthData = await healthRes.json();
         if (healthData.degradation_log) {
           setDegradations(healthData.degradation_log);
-          addLog("success", `✓ Found ${healthData.degradation_log.length} degradation events.`);
+          addLog("success", `✓ Found ${healthData.degradation_log.length} degradation events.`, "dataWorkspace.console.foundEvents", { count: healthData.degradation_log.length });
         } else {
           setDegradations([]);
         }
@@ -942,7 +952,7 @@ const DataWorkspaceView: React.FC = () => {
       // ── Also trigger V1 ingest to train ML models (Forecast, Margin, Segmentation) ──
       // This enables the /api/v1/report endpoint.
       try {
-        addLog("info", "Training ML models (Forecast · Margin · Segmentation)…");
+        addLog("info", "Training ML models (Forecast · Margin · Segmentation)…", "dataWorkspace.console.trainingModels");
         const v1Form = new FormData();
         v1Form.append("file", file);
         const v1Res = await fetch(`${API_URL}/api/v1/ingest`, {
@@ -951,19 +961,19 @@ const DataWorkspaceView: React.FC = () => {
         });
         if (v1Res.ok) {
           const v1Data = await v1Res.json();
-          addLog("success", `✓ ML models trained — ${v1Data.rows_raw} rows ingested.`);
+          addLog("success", `✓ ML models trained — ${v1Data.rows_raw} rows ingested.`, "dataWorkspace.console.modelsTrained", { rows: v1Data.rows_raw });
         } else {
-          addLog("muted", "V1 model training skipped (non-critical).");
+          addLog("muted", "V1 model training skipped (non-critical).", "dataWorkspace.console.v1Skipped");
         }
       } catch {
-        addLog("muted", "V1 model training skipped (backend unavailable).");
+        addLog("muted", "V1 model training skipped (backend unavailable).", "dataWorkspace.console.v1Unreachable");
       }
 
       setProgress(100);
       setDropState("complete");
     } catch (err: any) {
       timeouts.forEach(clearTimeout);
-      addLog("error", `✗ Upload failed: ${err.message}`);
+      addLog("error", `✗ Upload failed: ${err.message}`, "dataWorkspace.console.uploadFailed", { message: err.message });
       setDropState("error");
       setProgress(0);
     }
@@ -986,15 +996,15 @@ const DataWorkspaceView: React.FC = () => {
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
             <span className="t-eyebrow" style={{ color: "var(--p-ink-tertiary)" }}>
-              Predicto Platform
+              {t("dataWorkspace.predictoPlatform")}
             </span>
             <ChevronRight size={12} color="var(--p-hairline-tertiary)" />
             <span className="t-eyebrow" style={{ color: "var(--p-primary)" }}>
-              Ingest & Validate
+              {t("dataWorkspace.title")}
             </span>
           </div>
           <p style={{ fontSize: 13, color: "var(--p-ink-subtle)", marginTop: 4, letterSpacing: "-0.05px" }}>
-            Ingest, validate, and preview your revenue data before running the causal engine.
+            {t("dataWorkspace.subtitle")}
           </p>
         </div>
 
@@ -1002,15 +1012,15 @@ const DataWorkspaceView: React.FC = () => {
         <div style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: 4 }}>
           <button className="btn btn-secondary" style={{ fontSize: 13 }}>
             <Filter size={13} />
-            Filter
+            {t("dataWorkspace.filter")}
           </button>
           <button
             className="btn btn-primary"
             style={{ fontSize: 13 }}
-            onClick={() => alert("Native CRM Integrations (Salesforce, HubSpot) are coming in Predicto V4.")}
+            onClick={() => alert(t("dataWorkspace.integrationsComing"))}
           >
             <Database size={13} />
-            Integrations
+            {t("dataWorkspace.integrations")}
           </button>
         </div>
       </div>
@@ -1030,12 +1040,12 @@ const DataWorkspaceView: React.FC = () => {
           <div className="zone-header" style={{ marginBottom: 0 }}>
             <span className="zone-title">
               <Upload size={12} style={{ display: "inline", marginRight: 6, verticalAlign: "middle" }} />
-              Ingest Dropzone
+              {t("dataWorkspace.dropzone.title")}
             </span>
             {uploadedFile && (
               <span className="status-pill success">
                 <CheckCircle2 size={10} />
-                File accepted
+                {t("dataWorkspace.dropzone.fileAccepted")}
               </span>
             )}
           </div>
@@ -1051,7 +1061,7 @@ const DataWorkspaceView: React.FC = () => {
 
           {/* Supported formats note */}
           <p style={{ fontSize: 11, color: "var(--p-ink-tertiary)", fontFamily: "var(--font-mono)", letterSpacing: "0.2px" }}>
-            Accepted: .zip, .csv, .json (Max 500MB)
+            {t("dataWorkspace.dropzone.acceptedFormats")}
           </p>
         </div>
 
@@ -1060,7 +1070,7 @@ const DataWorkspaceView: React.FC = () => {
           <div className="zone-header" style={{ marginBottom: 0 }}>
             <span className="zone-title">
               <Terminal size={12} style={{ display: "inline", marginRight: 6, verticalAlign: "middle" }} />
-              Real-Time Status Feed
+              {t("dataWorkspace.console.title")}
             </span>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             </div>
@@ -1079,16 +1089,16 @@ const DataWorkspaceView: React.FC = () => {
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <span className="status-pill">
             <Database size={9} />
-            {stats.tables} tables
+            {t("dataWorkspace.stats.tablesCount", { count: stats.tables })}
           </span>
           <span className={`status-pill ${stats.degradationCount > 0 ? "warning" : "success"}`}>
             {stats.degradationCount > 0 ? <AlertTriangle size={9} /> : <CheckCircle2 size={9} />}
-            {stats.degradationCount} degradation events
+            {t("dataWorkspace.stats.degradationCount", { count: stats.degradationCount })}
           </span>
           {stats.missing > 0 && (
             <span className="status-pill danger">
               <XCircle size={9} />
-              {stats.missing} missing tables
+              {t("dataWorkspace.stats.missingCount", { count: stats.missing })}
             </span>
           )}
         </div>
@@ -1120,7 +1130,7 @@ const DataWorkspaceView: React.FC = () => {
             >
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <AlertTriangle size={13} />
-                Degradation Log
+                {t("dataWorkspace.tabs.degradationLog")}
                 <span
                   style={{
                     display:      "inline-flex",
@@ -1158,7 +1168,7 @@ const DataWorkspaceView: React.FC = () => {
             >
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <TableProperties size={13} />
-                Data Preview
+                {t("dataWorkspace.tabs.dataPreview")}
                 <span
                   style={{
                     display:       "inline-flex",
@@ -1206,20 +1216,20 @@ const DataWorkspaceView: React.FC = () => {
                 >
                   <div>
                     <p style={{ fontFamily: "var(--font-display)", fontSize: 14, fontWeight: 500, color: "var(--p-ink)", letterSpacing: "-0.1px" }}>
-                      Degradation Log
+                      {t("dataWorkspace.degradationTable.title")}
                     </p>
                     <p style={{ fontSize: 12, color: "var(--p-ink-tertiary)", marginTop: 2 }}>
-                      {degradations.length} issues found across {stats.tables} tables
+                      {t("dataWorkspace.degradationTable.subtitle", { issues: degradations.length, tables: stats.tables })}
                     </p>
                   </div>
                   <div style={{ display: "flex", gap: 8 }}>
                     <button className="btn btn-secondary" style={{ fontSize: 12, padding: "5px 12px", minHeight: 30 }}>
                       <Filter size={11} />
-                      Filter
+                      {t("dataWorkspace.filter")}
                     </button>
                     <button className="btn btn-secondary" style={{ fontSize: 12, padding: "5px 12px", minHeight: 30 }}>
                       <Download size={11} />
-                      Export
+                      {t("dataWorkspace.degradationTable.export")}
                     </button>
                   </div>
                 </div>
@@ -1252,10 +1262,10 @@ const DataWorkspaceView: React.FC = () => {
                 >
                   <div>
                     <p style={{ fontFamily: "var(--font-display)", fontSize: 14, fontWeight: 500, color: "var(--p-ink)", letterSpacing: "-0.1px" }}>
-                      Data Preview — sales_table.csv
+                      {t("dataWorkspace.previewTable.title")}
                     </p>
                     <p style={{ fontSize: 12, color: "var(--p-ink-tertiary)", marginTop: 2 }}>
-                      Showing {previews.length} rows
+                      {t("dataWorkspace.previewTable.showingRows", { count: previews.length })}
                     </p>
                   </div>
 

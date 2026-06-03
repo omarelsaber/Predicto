@@ -1,8 +1,4 @@
-/**
- * useUserStore.ts
- * Persistent user preferences stored in localStorage.
- * Currently stores the display name set during onboarding.
- */
+import { useState, useEffect } from "react";
 
 const STORAGE_KEY = "predicto_user";
 
@@ -29,10 +25,31 @@ export function getUserName(): string | null {
   return load()?.displayName ?? null;
 }
 
+const listeners = new Set<() => void>();
+
+export function useUserName(): string {
+  const [name, setName] = useState(getUserName() || "User");
+
+  useEffect(() => {
+    const handler = () => {
+      setName(getUserName() || "User");
+    };
+    listeners.add(handler);
+    return () => {
+      listeners.delete(handler);
+    };
+  }, []);
+
+  return name;
+}
+
 export function setUserName(name: string): void {
   save({ displayName: name });
+  listeners.forEach((l) => l());
 }
 
 export function clearUser(): void {
   localStorage.removeItem(STORAGE_KEY);
+  listeners.forEach((l) => l());
 }
+

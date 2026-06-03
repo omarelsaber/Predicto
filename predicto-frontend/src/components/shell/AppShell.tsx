@@ -9,8 +9,10 @@
  *   canvas (#010102) → surface-1 (#0f1011) sidebar/topbar → content on canvas
  */
 
-import React, { createContext, useContext, useState, useCallback } from "react";
-import { getUserName } from "@/store/useUserStore";
+import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from "react";
+import { useTranslation } from "react-i18next";
+import { useUserName, getUserName } from "@/store/useUserStore";
+import LanguageSwitcher from "@/components/shell/LanguageSwitcher";
 import {
   LayoutDashboard,
   TrendingUp,
@@ -59,13 +61,13 @@ export const useShell = () => useContext(ShellContext);
 
 interface NavItem {
   icon: React.ComponentType<{ size?: number; className?: string }>;
-  label: string;
+  labelKey: string;
   path: string;
   badge?: number;
 }
 
 interface NavGroup {
-  groupLabel?: string;
+  groupLabelKey?: string;
   items: NavItem[];
 }
 
@@ -76,22 +78,22 @@ interface NavGroup {
 const NAV_GROUPS: NavGroup[] = [
   {
     items: [
-      { icon: LayoutDashboard, label: "Intelligence Hub",  path: "/intelligence-hub" },
-      { icon: TrendingUp,      label: "Pipeline",         path: "/pipeline" },
+      { icon: LayoutDashboard, labelKey: "nav.intelligenceHub", path: "/intelligence-hub" },
+      { icon: TrendingUp,      labelKey: "nav.pipeline",        path: "/pipeline" },
     ],
   },
   {
-    groupLabel: "Risk & Growth",
+    groupLabelKey: "navGroup.riskGrowth",
     items: [
-      { icon: ShieldAlert,  label: "Risk & Retention", path: "/risk-retention", badge: 3 },
-      { icon: FlaskConical, label: "Intelligence Lab",  path: "/intelligence-lab" },
+      { icon: ShieldAlert,  labelKey: "nav.riskRetention",   path: "/risk-retention", badge: 3 },
+      { icon: FlaskConical, labelKey: "nav.intelligenceLab",  path: "/intelligence-lab" },
     ],
   },
   {
-    groupLabel: "Data & Reports",
+    groupLabelKey: "navGroup.dataReports",
     items: [
-      { icon: Database,      label: "Data Workspace", path: "/data-workspace" },
-      { icon: FileBarChart,  label: "Reports",        path: "/reports" },
+      { icon: Database,      labelKey: "nav.dataWorkspace", path: "/data-workspace" },
+      { icon: FileBarChart,  labelKey: "nav.reports",       path: "/reports" },
     ],
   },
 ];
@@ -102,13 +104,26 @@ const NAV_GROUPS: NavGroup[] = [
 
 /** Sidebar brand logo mark */
 const BrandMark: React.FC<{ collapsed: boolean }> = ({ collapsed }) => (
-  <div className="sidebar-logo" style={{ gap: "10px", justifyContent: "center" }}>
+  <div
+    className="sidebar-logo"
+    style={{
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      width: "100%",
+      padding: collapsed ? "0 4px" : "0 16px",
+      boxSizing: "border-box",
+      transition: "padding 200ms",
+    }}
+  >
     {/* Predicto logo image */}
     <img
       src="/predicto-logo.png"
       alt="Predicto"
       style={{
-        height: collapsed ? 30 : 40,
+        height: collapsed ? 32 : 48,
+        maxWidth: "100%",
+        objectFit: "contain",
         flexShrink: 0,
         filter: "drop-shadow(0 0 8px rgba(94,106,210,0.2))",
         transition: "height 200ms",
@@ -124,17 +139,19 @@ const SidebarNavItem: React.FC<{
   active: boolean;
   onClick: () => void;
 }> = ({ item, collapsed, active, onClick }) => {
+  const { t } = useTranslation();
   const Icon = item.icon;
+  const label = t(item.labelKey);
   return (
     <button
       className={`sidebar-nav-item${active ? " active" : ""}`}
       onClick={onClick}
-      title={collapsed ? item.label : undefined}
+      title={collapsed ? label : undefined}
       style={{ width: "100%", border: "none", background: "none" }}
     >
       <Icon size={16} className="nav-icon" style={{ flexShrink: 0 }} />
       {!collapsed && (
-        <span style={{ flex: 1, textAlign: "left" }}>{item.label}</span>
+        <span style={{ flex: 1, textAlign: "start" }}>{label}</span>
       )}
       {!collapsed && item.badge != null && item.badge > 0 && (
         <span
@@ -164,15 +181,18 @@ const Sidebar: React.FC<{
   onToggle: () => void;
   activePath: string;
   onNavigate: (path: string) => void;
-}> = ({ collapsed, onToggle, activePath, onNavigate }) => (
+}> = ({ collapsed, onToggle, activePath, onNavigate }) => {
+  const { t } = useTranslation();
+  const userName = useUserName();
+  return (
   <aside className={`sidebar${collapsed ? " collapsed" : ""}`}>
     <BrandMark collapsed={collapsed} />
 
     <nav className="sidebar-nav" style={{ paddingTop: 8 }}>
       {NAV_GROUPS.map((group, gi) => (
         <div key={gi} style={{ marginBottom: 4 }}>
-          {!collapsed && group.groupLabel && (
-            <div className="sidebar-nav-group-label">{group.groupLabel}</div>
+          {!collapsed && group.groupLabelKey && (
+            <div className="sidebar-nav-group-label">{t(group.groupLabelKey)}</div>
           )}
           {group.items.map((item) => (
             <SidebarNavItem
@@ -235,7 +255,7 @@ const Sidebar: React.FC<{
                 whiteSpace: "nowrap",
               }}
             >
-              {getUserName() || "User"}
+              {userName}
             </div>
             <div
               style={{
@@ -246,7 +266,7 @@ const Sidebar: React.FC<{
                 whiteSpace: "nowrap",
               }}
             >
-              Workspace
+              {t("sidebar.workspace")}
             </div>
           </div>
         )}
@@ -256,7 +276,7 @@ const Sidebar: React.FC<{
       <button
         className="sidebar-nav-item"
         onClick={onToggle}
-        title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        title={collapsed ? t("sidebar.expandSidebar") : t("sidebar.collapseSidebar")}
         style={{
           width: "100%",
           border: "none",
@@ -272,7 +292,8 @@ const Sidebar: React.FC<{
       </button>
     </div>
   </aside>
-);
+  );
+};
 
 
 /** Topbar */
@@ -281,7 +302,66 @@ const Topbar: React.FC<{
   onAiToggle: () => void;
   aiPanelOpen: boolean;
   onNavigate?: (path: string) => void;
-}> = ({ pageTitle, onAiToggle, aiPanelOpen, onNavigate }) => (
+}> = ({ pageTitle, onAiToggle, aiPanelOpen, onNavigate }) => {
+  const { t, i18n } = useTranslation();
+  const isRtl = i18n.dir() === "rtl";
+
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notificationsList, setNotificationsList] = useState([
+    {
+      id: "churn",
+      key: "notifications.churnAlert",
+      time: "5m ago",
+      timeAr: "منذ 5 د",
+      type: "critical",
+      read: false,
+    },
+    {
+      id: "upload",
+      key: "notifications.uploadSuccess",
+      time: "2h ago",
+      timeAr: "منذ ساعتين",
+      type: "success",
+      read: false,
+    },
+    {
+      id: "playbook",
+      key: "notifications.playbookAlert",
+      time: "1d ago",
+      timeAr: "منذ يوم",
+      type: "info",
+      read: false,
+    },
+  ]);
+
+  const unreadCount = notificationsList.filter(n => !n.read).length;
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setNotificationsOpen(false);
+      }
+    }
+    if (notificationsOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [notificationsOpen]);
+
+  const handleMarkAsRead = (id: string) => {
+    setNotificationsList(prev =>
+      prev.map(n => (n.id === id ? { ...n, read: true } : n))
+    );
+  };
+
+  const handleClearAll = () => {
+    setNotificationsList([]);
+  };
+
+  return (
   <header className="topbar">
     {/* Page title */}
     <div style={{ flex: 1, minWidth: 0 }}>
@@ -297,7 +377,7 @@ const Topbar: React.FC<{
           whiteSpace: "nowrap",
         }}
       >
-        {pageTitle}
+        {t(pageTitle, pageTitle)}
       </h1>
     </div>
 
@@ -307,42 +387,169 @@ const Topbar: React.FC<{
       {/* Upload — go to Data Workspace */}
       <button
         className="btn-icon"
-        title="Upload Data"
+        title={t("topbar.uploadData")}
         onClick={() => onNavigate?.("/data-workspace")}
       >
         <Upload size={15} />
       </button>
 
       {/* Notifications */}
-      <button
-        className="btn-icon"
-        title="Notifications"
-        style={{ position: "relative" }}
-      >
-        <Bell size={15} />
-        {/* Notification dot */}
-        <span
+      <div style={{ position: "relative" }} ref={dropdownRef}>
+        <button
+          className="btn-icon"
+          title={t("topbar.notifications")}
+          onClick={() => setNotificationsOpen(!notificationsOpen)}
           style={{
-            position: "absolute",
-            top: 6,
-            right: 6,
-            width: 5,
-            height: 5,
-            borderRadius: "50%",
-            background: "var(--p-danger)",
-            border: "1.5px solid var(--p-surface-1)",
+            position: "relative",
+            background: notificationsOpen ? "rgba(255,255,255,0.06)" : undefined,
           }}
-        />
-      </button>
+        >
+          <Bell size={15} />
+          {/* Notification dot */}
+          {unreadCount > 0 && (
+            <span
+              style={{
+                position: "absolute",
+                top: 6,
+                insetInlineEnd: 6,
+                width: 5,
+                height: 5,
+                borderRadius: "50%",
+                background: "var(--p-danger)",
+                border: "1.5px solid var(--p-surface-1)",
+              }}
+            />
+          )}
+        </button>
+
+        {/* Dropdown panel */}
+        {notificationsOpen && (
+          <div
+            className="surface-1"
+            style={{
+              position: "absolute",
+              top: 36,
+              insetInlineEnd: 0,
+              width: 320,
+              borderRadius: 12,
+              border: "1px solid var(--p-hairline)",
+              boxShadow: "0 10px 30px rgba(0,0,0,0.5), inset 0 1px 0 0 rgba(255,255,255,0.04)",
+              zIndex: 100,
+              overflow: "hidden",
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
+            {/* Header */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "10px 14px",
+                borderBottom: "1px solid var(--p-hairline)",
+                background: "rgba(255,255,255,0.01)",
+              }}
+            >
+              <span style={{ fontSize: 13, fontWeight: 600, color: "var(--p-ink)" }}>
+                {t("notifications.title", "Notifications")}
+              </span>
+              {notificationsList.length > 0 && (
+                <button
+                  onClick={handleClearAll}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    fontSize: 11,
+                    color: "var(--p-ink-tertiary)",
+                    cursor: "pointer",
+                    padding: "2px 6px",
+                    borderRadius: 4,
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.color = "var(--p-danger)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.color = "var(--p-ink-tertiary)")}
+                >
+                  {t("notifications.clearAll", "Clear all")}
+                </button>
+              )}
+            </div>
+
+            {/* List */}
+            <div style={{ maxHeight: 280, overflowY: "auto" }}>
+              {notificationsList.length === 0 ? (
+                <div style={{ padding: "30px 16px", textAlign: "center", color: "var(--p-ink-tertiary)", fontSize: 12 }}>
+                  {t("notifications.empty", "No new notifications")}
+                </div>
+              ) : (
+                notificationsList.map((n) => {
+                  const itemColor = n.type === "critical"
+                    ? "var(--p-danger)"
+                    : n.type === "success"
+                    ? "#4ade80"
+                    : "var(--p-primary-hover)";
+                  return (
+                    <div
+                      key={n.id}
+                      onClick={() => handleMarkAsRead(n.id)}
+                      style={{
+                        padding: "12px 14px",
+                        borderBottom: "1px solid var(--p-hairline)",
+                        cursor: "pointer",
+                        background: n.read ? "transparent" : "rgba(94,106,210,0.03)",
+                        display: "flex",
+                        gap: 10,
+                        transition: "background 150ms",
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.02)")}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = n.read ? "transparent" : "rgba(94,106,210,0.03)")}
+                    >
+                      {/* Left color bar/dot indicator */}
+                      <span
+                        style={{
+                          width: 6,
+                          height: 6,
+                          borderRadius: "50%",
+                          background: itemColor,
+                          marginTop: 6,
+                          flexShrink: 0,
+                        }}
+                      />
+                      <div style={{ flex: 1, minWidth: 0, textAlign: isRtl ? "right" : "left" }}>
+                        <p
+                          style={{
+                            margin: 0,
+                            fontSize: 12,
+                            lineHeight: 1.4,
+                            color: n.read ? "var(--p-ink-subtle)" : "var(--p-ink)",
+                            fontWeight: n.read ? 400 : 500,
+                          }}
+                        >
+                          {t(n.key)}
+                        </p>
+                        <span style={{ fontSize: 10, color: "var(--p-ink-tertiary)", marginTop: 4, display: "inline-block" }}>
+                          {isRtl ? n.timeAr : n.time}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Settings — go to Settings page */}
       <button
         className="btn-icon"
-        title="Settings"
+        title={t("topbar.settings")}
         onClick={() => onNavigate?.("/settings")}
       >
         <Settings size={15} />
       </button>
+
+      {/* Language Switcher */}
+      <LanguageSwitcher />
 
       <div
         style={{
@@ -375,11 +582,12 @@ const Topbar: React.FC<{
         }}
       >
         <Sparkles size={13} />
-        AI Analyst
+        {t("topbar.aiAnalyst")}
       </button>
     </div>
   </header>
-);
+  );
+};
 
 /* --------------------------------------------------------------------------
    AI Analyst Chat Panel
@@ -392,24 +600,13 @@ interface ChatMessage {
   timestamp: Date;
 }
 
-function getInitialMessages(): ChatMessage[] {
-  const name = getUserName() || "there";
-  return [
-    {
-      id: "1",
-      role: "ai",
-      content:
-        `Hello ${name}. I'm your AI Analyst. I can help you analyze revenue trends, identify growth opportunities, and answer questions about your data. What would you like to explore?`,
-      timestamp: new Date(),
-    },
-  ];
-}
-
 const AiAnalystPanel: React.FC<{ open: boolean; onClose: () => void }> = ({
   open,
   onClose,
 }) => {
-  const [messages, setMessages] = useState<ChatMessage[]>(getInitialMessages());
+  const { t } = useTranslation();
+  const userName = useUserName();
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
 
   const handleSend = useCallback(() => {
@@ -426,14 +623,13 @@ const AiAnalystPanel: React.FC<{ open: boolean; onClose: () => void }> = ({
     const aiMsg: ChatMessage = {
       id: (Date.now() + 1).toString(),
       role: "ai",
-      content:
-        "Analyzing your query against current pipeline data and revenue signals…",
+      content: t("aiPanel.analyzingQuery", "Analyzing your query against current pipeline data and revenue signals…"),
       timestamp: new Date(),
     };
 
     setMessages((prev) => [...prev, userMsg, aiMsg]);
     setInput("");
-  }, [input]);
+  }, [input, t]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -443,10 +639,19 @@ const AiAnalystPanel: React.FC<{ open: boolean; onClose: () => void }> = ({
   };
 
   const SUGGESTED = [
-    "What's driving churn this quarter?",
-    "Top 5 expansion candidates",
-    "Forecast accuracy breakdown",
+    t("aiPanel.suggestChurn", "What's driving churn this quarter?"),
+    t("aiPanel.suggestExpansion", "Top 5 expansion candidates"),
+    t("aiPanel.suggestForecast", "Forecast accuracy breakdown"),
   ];
+
+  const initialMsg: ChatMessage = {
+    id: "initial",
+    role: "ai",
+    content: t("aiPanel.greeting", { name: userName }),
+    timestamp: new Date(),
+  };
+
+  const allMessages = [initialMsg, ...messages];
 
   return (
     <aside className={`ai-panel${open ? "" : " closed"}`}>
@@ -477,14 +682,14 @@ const AiAnalystPanel: React.FC<{ open: boolean; onClose: () => void }> = ({
                 letterSpacing: "-0.2px",
               }}
             >
-              AI Analyst
+              {t("aiPanel.title", "AI Analyst")}
             </div>
             <div style={{ fontSize: 11, color: "var(--p-ink-tertiary)" }}>
-              Powered by Predicto
+              {t("aiPanel.subtitle", "Powered by Predicto")}
             </div>
           </div>
         </div>
-        <button className="btn-icon" onClick={onClose} title="Close AI panel">
+        <button className="btn-icon" onClick={onClose} title={t("common.close", "Close")}>
           <X size={14} />
         </button>
       </div>
@@ -537,7 +742,7 @@ const AiAnalystPanel: React.FC<{ open: boolean; onClose: () => void }> = ({
         className="ai-panel-body"
         style={{ padding: "12px", gap: "10px" }}
       >
-        {messages.map((msg) => (
+        {allMessages.map((msg) => (
           <div
             key={msg.id}
             className={msg.role === "user" ? "msg-user" : "msg-ai"}
@@ -599,7 +804,7 @@ const AiAnalystPanel: React.FC<{ open: boolean; onClose: () => void }> = ({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask about your revenue…"
+            placeholder={t("aiPanel.placeholder", "Ask about your revenue…")}
             style={{
               flex: 1,
               background: "transparent",
@@ -641,7 +846,7 @@ const AiAnalystPanel: React.FC<{ open: boolean; onClose: () => void }> = ({
             textAlign: "center",
           }}
         >
-          AI responses are for informational purposes only.
+          {t("aiPanel.disclaimer", "AI responses are for informational purposes only.")}
         </p>
       </div>
     </aside>
@@ -665,7 +870,7 @@ interface AppShellProps {
 export const AppShell: React.FC<AppShellProps> = ({
   children,
   activePath = "/intelligence-hub",
-  pageTitle = "Intelligence Hub",
+  pageTitle = "nav.intelligenceHub",
   onNavigate,
 }) => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);

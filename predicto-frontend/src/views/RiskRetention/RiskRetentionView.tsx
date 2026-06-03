@@ -47,6 +47,7 @@ import {
   Info,
 } from "lucide-react";
 import { useShell } from "@/components/shell/AppShell";
+import { useTranslation } from "react-i18next";
 
 /* ==========================================================================
    Types
@@ -463,6 +464,7 @@ interface ChurnWarningsTabProps {
 }
 
 const ChurnWarningsTab: React.FC<ChurnWarningsTabProps> = ({ onIntervene }) => {
+  const { t } = useTranslation();
   const [liveChurnData, setLiveChurnData] = useState<ChurnRecord[] | null>(null);
   const [churnMeta, setChurnMeta] = useState<{
     criticalCount: number;
@@ -530,10 +532,10 @@ const ChurnWarningsTab: React.FC<ChurnWarningsTabProps> = ({ onIntervene }) => {
         }}
       >
         {[
-          { label: "Critical (≥75%)",   value: churnMeta?.criticalCount ?? 0, color: "var(--p-danger)"  },
-          { label: "High Risk (50–74%)", value: churnMeta?.warningCount ?? 0, color: "var(--p-warning)" },
-          { label: "Moderate (<50%)",   value: Math.max(0, (churnMeta?.totalCustomers ?? displayData.length) - (churnMeta?.criticalCount ?? 0) - (churnMeta?.warningCount ?? 0)), color: "#4ade80"           },
-          { label: "ARR at Risk",       value: formatArr(churnMeta?.totalArrAtRisk ?? 0), color: "var(--p-ink)"       },
+          { label: t("risk.criticalLabel"),   value: churnMeta?.criticalCount ?? 0, color: "var(--p-danger)"  },
+          { label: t("risk.highRiskLabel"), value: churnMeta?.warningCount ?? 0, color: "var(--p-warning)" },
+          { label: t("risk.moderateLabel"),   value: Math.max(0, (churnMeta?.totalCustomers ?? displayData.length) - (churnMeta?.criticalCount ?? 0) - (churnMeta?.warningCount ?? 0)), color: "#4ade80"           },
+          { label: t("risk.arrAtRiskLabel"),       value: formatArr(churnMeta?.totalArrAtRisk ?? 0), color: "var(--p-ink)"       },
         ].map(s => (
           <div
             key={s.label}
@@ -581,7 +583,16 @@ const ChurnWarningsTab: React.FC<ChurnWarningsTabProps> = ({ onIntervene }) => {
         <Table>
           <TableHead>
             <TableRow style={{ borderBottom: "1px solid var(--p-hairline)" }}>
-              {["Customer", "Industry · Tier", "ARR", "Churn Risk", "Trend", "Renewal", "CSM Owner", ""].map(h => (
+              {[
+                t("risk.table.customer"),
+                t("risk.table.industryTier"),
+                t("risk.table.arr"),
+                t("risk.table.churnRisk"),
+                t("risk.table.trend"),
+                t("risk.table.renewal"),
+                t("risk.table.csmOwner"),
+                ""
+              ].map(h => (
                 <TableHeaderCell
                   key={h}
                   style={{
@@ -666,7 +677,7 @@ const ChurnWarningsTab: React.FC<ChurnWarningsTabProps> = ({ onIntervene }) => {
                           letterSpacing: "0.2px",
                         }}
                       >
-                        {record.tier}
+                        {record.tier === "Enterprise" ? t("common.enterprise") : record.tier === "Growth" ? t("common.midMarket", "Growth") : t("common.starter", "Startup")}
                       </span>
                     </TableCell>
 
@@ -711,7 +722,7 @@ const ChurnWarningsTab: React.FC<ChurnWarningsTabProps> = ({ onIntervene }) => {
                       {prob >= 75 && (
                         <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 4 }}>
                           <AlertTriangle size={10} color="var(--p-danger)" />
-                          <span style={{ fontSize: 10, color: "var(--p-danger)", fontFamily: "var(--font-mono)" }}>Critical threshold</span>
+                          <span style={{ fontSize: 10, color: "var(--p-danger)", fontFamily: "var(--font-mono)" }}>{t("risk.table.criticalThreshold")}</span>
                         </div>
                       )}
                     </TableCell>
@@ -770,10 +781,13 @@ const ChurnWarningsTab: React.FC<ChurnWarningsTabProps> = ({ onIntervene }) => {
                           onClick={(e) => {
                             e.stopPropagation();
                             onIntervene(
-                              `Analyse churn risk for ${record.customer}. Churn probability: ${record.churnProbability}%. ` +
-                              `Risk signals: ${record.riskSignals.join(", ")}. ` +
-                              `Renewal in ${record.daysToRenewal} days. ARR: ${formatArr(record.arr)}. ` +
-                              `Recommend specific intervention steps for the CSM to take this week.`
+                              t("risk.playbookQuery", {
+                                customer: record.customer,
+                                probability: record.churnProbability,
+                                signals: record.riskSignals.join(", "),
+                                renewal: record.daysToRenewal,
+                                arr: formatArr(record.arr),
+                              })
                             );
                           }}
                           className="btn btn-primary"
@@ -786,7 +800,7 @@ const ChurnWarningsTab: React.FC<ChurnWarningsTabProps> = ({ onIntervene }) => {
                             fontFamily:   "var(--font-body)",
                           }}
                         >
-                          Intervene
+                          {t("risk.intervene")}
                         </button>
                         <button
                           className="btn-icon"
@@ -819,7 +833,7 @@ const ChurnWarningsTab: React.FC<ChurnWarningsTabProps> = ({ onIntervene }) => {
                       >
                         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, paddingTop: 6 }}>
                           <span style={{ fontSize: 11, color: "var(--p-ink-tertiary)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.4px", marginRight: 4, alignSelf: "center" }}>
-                            Risk Signals:
+                            {t("risk.table.riskSignalsLabel")}
                           </span>
                           {record.riskSignals.map((sig) => (
                             <span
@@ -862,6 +876,7 @@ const ChurnWarningsTab: React.FC<ChurnWarningsTabProps> = ({ onIntervene }) => {
 const ExpansionCandidatesTab: React.FC<{
   onUpsellPlay: (query: string) => void;
 }> = ({ onUpsellPlay }) => {
+  const { t } = useTranslation();
   const [liveExpansionData, setLiveExpansionData] = useState<ExpansionCandidate[] | null>(null);
   const [totalOpportunityLive, setTotalOpportunityLive] = useState<number | null>(null);
 
@@ -937,9 +952,9 @@ const ExpansionCandidatesTab: React.FC<{
       {/* Header metrics */}
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
         {[
-          { label: "Total Upsell Opportunity", value: formatArr(totalOpportunity), icon: <DollarSign size={14} />, color: "#4ade80"            },
-          { label: "High Confidence",          value: displayExpansion.filter(r => r.confidence === "HIGH").length,   icon: <Shield size={14} />, color: "var(--p-primary-hover)" },
-          { label: "Accounts Identified",      value: displayExpansion.length,                                        icon: <Target size={14} />, color: "var(--p-ink-muted)"     },
+          { label: t("risk.totalUpsellOpportunity"), value: formatArr(totalOpportunity), icon: <DollarSign size={14} />, color: "#4ade80"            },
+          { label: t("risk.highConfidenceLabel"),          value: displayExpansion.filter(r => r.confidence === "HIGH").length,   icon: <Shield size={14} />, color: "var(--p-primary-hover)" },
+          { label: t("risk.accountsIdentified"),      value: displayExpansion.length,                                        icon: <Target size={14} />, color: "var(--p-ink-muted)"     },
         ].map(m => (
           <div
             key={m.label}
@@ -1085,7 +1100,7 @@ const ExpansionCandidatesTab: React.FC<{
                     flexShrink:   0,
                   }}
                 >
-                  {cand.confidence}
+                  {t(`risk.${cand.confidence.toLowerCase()}`)}
                 </span>
               </div>
 
@@ -1102,8 +1117,8 @@ const ExpansionCandidatesTab: React.FC<{
                 }}
               >
                 {[
-                  { label: "Current ARR",       value: formatArr(cand.currentArr),         icon: <DollarSign size={10} /> },
-                  { label: "Expansion Potential", value: `+${formatArr(cand.expansionPotential)}`, icon: <ArrowUpRight size={10} />, highlight: true },
+                  { label: t("risk.currentArrLabel"),       value: formatArr(cand.currentArr),         icon: <DollarSign size={10} /> },
+                  { label: t("risk.expansionPotentialLabel"), value: `+${formatArr(cand.expansionPotential)}`, icon: <ArrowUpRight size={10} />, highlight: true },
                 ].map((m, i) => (
                   <div
                     key={m.label}
@@ -1138,7 +1153,7 @@ const ExpansionCandidatesTab: React.FC<{
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                   <span style={{ fontSize: 11, color: "var(--p-ink-tertiary)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.4px" }}>
-                    Expansion Readiness
+                    {t("risk.expansionReadiness")}
                   </span>
                   <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, fontWeight: 600, color: "var(--p-ink)" }}>
                     {scoreBar}/100
@@ -1154,7 +1169,7 @@ const ExpansionCandidatesTab: React.FC<{
               {/* Signals */}
               <div>
                 <div style={{ fontSize: 10, color: "var(--p-ink-tertiary)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 7 }}>
-                  Buying Signals
+                  {t("risk.buyingSignals")}
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
                   {cand.signals.map((sig) => (
@@ -1213,13 +1228,15 @@ const ExpansionCandidatesTab: React.FC<{
                 </div>
                 <button
                   onClick={() => onUpsellPlay(
-                    `Create an upsell playbook for ${cand.customer}. ` +
-                    `Current ARR: ${formatArr(cand.currentArr)}. ` +
-                    `Expansion potential: +${formatArr(cand.expansionPotential)} ` +
-                    `(${cand.confidence} confidence, readiness ${cand.score}/100). ` +
-                    `Recommended product: ${cand.recommendedProduct}. ` +
-                    `Buying signal: ${cand.signals[0] ?? "expansion interest detected"}. ` +
-                    `Draft a 3-step upsell approach for the CSM to execute this quarter.`
+                    t("risk.upsellPlaybookQuery", {
+                      customer: cand.customer,
+                      arr: formatArr(cand.currentArr),
+                      potential: formatArr(cand.expansionPotential),
+                      confidence: t(`risk.${cand.confidence.toLowerCase()}`),
+                      score: cand.score,
+                      product: cand.recommendedProduct,
+                      signal: cand.signals[0] ?? t("risk.genericSignal", "expansion interest detected"),
+                    })
                   )}
                   className="btn btn-primary"
                   style={{
@@ -1234,7 +1251,7 @@ const ExpansionCandidatesTab: React.FC<{
                   }}
                 >
                   <ArrowUpRight size={12} />
-                  Upsell Play
+                  {t("risk.upsellPlay")}
                 </button>
               </div>
             </div>
@@ -1381,6 +1398,7 @@ const GlassSlider: React.FC<GlassSliderProps> = ({
    ========================================================================== */
 
 const ScenarioSimulatorTab: React.FC = () => {
+  const { t } = useTranslation();
   const [discountRate,  setDiscountRate]  = useState(15);
   const [csmIntensity,  setCsmIntensity]  = useState(60);
 
@@ -1394,12 +1412,12 @@ const ScenarioSimulatorTab: React.FC = () => {
 
   const insightText = 
     discountRate > 25 && csmIntensity < 40
-      ? "⚠️ High discount with low CSM coverage — margin erosion risk is elevated."
+      ? t("risk.insightHighDiscount", "⚠️ High discount with low CSM coverage — margin erosion risk is elevated.")
     : csmIntensity > 75
-      ? "✓ High CSM intensity drives strong retention. Consider reducing discount to protect margin."
+      ? t("risk.insightHighCsm", "✓ High CSM intensity drives strong retention. Consider reducing discount to protect margin.")
     : discountRate < 10 && csmIntensity > 60
-      ? "✓ Optimal balance. Low discount + high CSM = highest NRR scenario."
-    : "Balanced levers. Base trajectory reflects steady organic expansion.";
+      ? t("risk.insightOptimal", "✓ Optimal balance. Low discount + high CSM = highest NRR scenario.")
+    : t("risk.insightBalanced", "Balanced levers. Base trajectory reflects steady organic expansion.");
 
   // Delta from starting base
   const BASE_START  = 28.4;
@@ -1436,15 +1454,15 @@ const ScenarioSimulatorTab: React.FC = () => {
         >
           <SlidersHorizontal size={16} color="var(--p-primary)" />
           <div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--p-ink)", letterSpacing: "-0.1px" }}>Lever Controls</div>
-            <div style={{ fontSize: 11, color: "var(--p-ink-tertiary)", marginTop: 1 }}>Adjust inputs to model ARR scenarios</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--p-ink)", letterSpacing: "-0.1px" }}>{t("risk.leverControls")}</div>
+            <div style={{ fontSize: 11, color: "var(--p-ink-tertiary)", marginTop: 1 }}>{t("risk.leverControlsSubtitle")}</div>
           </div>
         </div>
 
         {/* Sliders */}
         <GlassSlider
-          label="Discount Rate"
-          description="Avg. net price reduction offered"
+          label={t("risk.discountRate")}
+          description={t("risk.discountRateDesc")}
           icon={<DollarSign size={13} />}
           value={discountRate}
           min={0}
@@ -1456,8 +1474,8 @@ const ScenarioSimulatorTab: React.FC = () => {
         />
 
         <GlassSlider
-          label="CSM Intensity"
-          description="Proactive engagement coverage"
+          label={t("risk.csmIntensity")}
+          description={t("risk.csmIntensityDesc")}
           icon={<Users size={13} />}
           value={csmIntensity}
           min={0}
@@ -1483,14 +1501,14 @@ const ScenarioSimulatorTab: React.FC = () => {
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}>
             <Info size={12} color="var(--p-primary)" />
             <span style={{ fontSize: 11, fontWeight: 500, color: "var(--p-primary-hover)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.4px" }}>
-              Model Insight
+              {t("risk.modelInsight")}
             </span>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {[
-              { label: "Base Case",    value: `$${finalBase}M`, delta: `+${baseDelta}%`, color: "#828fff" },
-              { label: "Optimistic",   value: `$${finalOpt}M`,  delta: `+${optDelta}%`,  color: "#4ade80" },
-              { label: "Pessimistic",  value: `$${finalPess}M`, delta: `+${pessDelta}%`, color: "#f87171" },
+              { label: t("risk.baseCase"),    value: `$${finalBase}M`, delta: `+${baseDelta}%`, color: "#828fff" },
+              { label: t("risk.optimistic"),   value: `$${finalOpt}M`,  delta: `+${optDelta}%`,  color: "#4ade80" },
+              { label: t("risk.pessimistic"),  value: `$${finalPess}M`, delta: `+${pessDelta}%`, color: "#f87171" },
             ].map(row => (
               <div key={row.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -1524,7 +1542,7 @@ const ScenarioSimulatorTab: React.FC = () => {
           className="btn btn-secondary"
           style={{ width: "100%", justifyContent: "center" }}
         >
-          Reset to Defaults
+          {t("risk.resetToDefaults")}
         </button>
       </div>
 
@@ -1547,15 +1565,15 @@ const ScenarioSimulatorTab: React.FC = () => {
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <BarChart3 size={16} color="var(--p-primary)" />
             <div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: "var(--p-ink)", letterSpacing: "-0.1px" }}>ARR Trajectory</div>
-              <div style={{ fontSize: 11, color: "var(--p-ink-tertiary)", marginTop: 1 }}>Jun 2025 – Feb 2026 · 9-month projection</div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "var(--p-ink)", letterSpacing: "-0.1px" }}>{t("risk.arrTrajectory")}</div>
+              <div style={{ fontSize: 11, color: "var(--p-ink-tertiary)", marginTop: 1 }}>{t("risk.arrTrajectorySubtitle")}</div>
             </div>
           </div>
           <div style={{ display: "flex", gap: 14 }}>
             {[
-              { label: "Base",       color: "#828fff" },
-              { label: "Optimistic", color: "#4ade80" },
-              { label: "Pessimistic",color: "#f87171" },
+              { label: t("risk.baseCase"),       color: "#828fff" },
+              { label: t("risk.optimistic"), color: "#4ade80" },
+              { label: t("risk.pessimistic"),color: "#f87171" },
             ].map(l => (
               <div key={l.label} style={{ display: "flex", alignItems: "center", gap: 5 }}>
                 <div style={{ width: 8, height: 2, background: l.color, borderRadius: 2 }} />
@@ -1565,7 +1583,7 @@ const ScenarioSimulatorTab: React.FC = () => {
           </div>
         </div>
 
-        {/* Tremor AreaChart */}
+        {/* Tremor AreaChart wrapped in LTR to prevent layout breakage */}
         <Card
           className="scenario-chart"
           style={{
@@ -1576,28 +1594,46 @@ const ScenarioSimulatorTab: React.FC = () => {
             boxShadow:    "inset 0 1px 0 0 rgba(255,255,255,0.04)",
           }}
         >
-          <AreaChart
-            data={trajectoryData}
-            index="month"
-            categories={["Base", "Optimistic", "Pessimistic"]}
-            colors={["indigo", "emerald", "red"]}
-            valueFormatter={(v) => `$${v.toFixed(1)}M`}
-            showLegend={false}
-            showAnimation={true}
-            showGridLines={true}
-            curveType="monotone"
-            className="h-72"
-            connectNulls={true}
-            autoMinValue={true}
-          />
+          <div dir="ltr">
+            {(() => {
+              const baseKey = t("risk.baseCase", "Base Case");
+              const optKey = t("risk.optimistic", "Optimistic");
+              const pessKey = t("risk.pessimistic", "Pessimistic");
+
+              const translatedTrajectory = trajectoryData.map((item: any) => ({
+                month: t(`months.${item.month}`, item.month),
+                [baseKey]: item.Base,
+                [optKey]: item.Optimistic,
+                [pessKey]: item.Pessimistic,
+              }));
+
+              return (
+                <AreaChart
+                  data={translatedTrajectory}
+                  index="month"
+                  categories={[baseKey, optKey, pessKey]}
+                  colors={["indigo", "emerald", "red"]}
+                  valueFormatter={(v) => `$${v.toFixed(1)}M`}
+                  showLegend={false}
+                  showAnimation={true}
+                  showGridLines={true}
+                  curveType="monotone"
+                  className="h-72"
+                  connectNulls={true}
+                  autoMinValue={true}
+                />
+              );
+            })()}
+          </div>
         </Card>
 
         {/* Scenario outcome cards */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
           {[
             {
-              label:       "Pessimistic",
-              description: "High discount / low CSM",
+              key:         "pessimistic",
+              label:       t("risk.pessimistic"),
+              description: t("risk.pessimisticDesc"),
               finalArr:    finalPess,
               delta:       pessDelta,
               color:       "#f87171",
@@ -1606,8 +1642,9 @@ const ScenarioSimulatorTab: React.FC = () => {
               Icon:        TrendingDown,
             },
             {
-              label:       "Base Case",
-              description: "Current levers applied",
+              key:         "baseCase",
+              label:       t("risk.baseCase"),
+              description: t("risk.baseCaseDesc"),
               finalArr:    finalBase,
               delta:       baseDelta,
               color:       "#828fff",
@@ -1616,8 +1653,9 @@ const ScenarioSimulatorTab: React.FC = () => {
               Icon:        Activity,
             },
             {
-              label:       "Optimistic",
-              description: "Max retention + expansion",
+              key:         "optimistic",
+              label:       t("risk.optimistic"),
+              description: t("risk.optimisticDesc"),
               finalArr:    finalOpt,
               delta:       optDelta,
               color:       "#4ade80",
@@ -1627,7 +1665,7 @@ const ScenarioSimulatorTab: React.FC = () => {
             },
           ].map(s => (
             <div
-              key={s.label}
+              key={s.key}
               style={{
                 background:   s.bg,
                 border:       `1px solid ${s.border}`,
@@ -1654,16 +1692,16 @@ const ScenarioSimulatorTab: React.FC = () => {
               >
                 ${s.finalArr.toFixed(1)}M
               </div>
-              {s.label === "Pessimistic" 
+              {s.key === "pessimistic" 
                 ? <div style={{ fontSize: 11, color: s.color, opacity: 0.7, fontFamily: "var(--font-mono)" }}>
-                    vs Base: {Number(vsBasePess) > 0 ? "+" : ""}{vsBasePess}%
+                    {t("risk.vsBase")} {Number(vsBasePess) > 0 ? "+" : ""}{vsBasePess}%
                   </div>
-                : s.label === "Optimistic"
+                : s.key === "optimistic"
                 ? <div style={{ fontSize: 11, color: s.color, opacity: 0.7, fontFamily: "var(--font-mono)" }}>
-                    vs Base: +{vsBaseOpt}%
+                    {t("risk.vsBase")} +{vsBaseOpt}%
                   </div>
                 : <div style={{ fontSize: 11, color: s.color, opacity: 0.7, fontFamily: "var(--font-mono)" }}>
-                    +{s.delta}% vs start
+                    +{s.delta}% {t("risk.vsStart")}
                   </div>
               }
               <div style={{ fontSize: 10, color: "var(--p-ink-tertiary)", marginTop: 4 }}>{s.description}</div>
@@ -1681,6 +1719,7 @@ const ScenarioSimulatorTab: React.FC = () => {
 
 const RiskRetentionView: React.FC = () => {
   const { openAiPanel } = useShell();
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<TabId>("churn");
   const [liveChurnCount,     setLiveChurnCount]     = useState<number>(0);
   const [liveExpansionCount, setLiveExpansionCount] = useState<number>(0);
@@ -1752,7 +1791,7 @@ const RiskRetentionView: React.FC = () => {
                   margin:        0,
                 }}
               >
-                Risk &amp; Retention
+                {t("risk.title")}
               </h1>
               <span
                 style={{
@@ -1767,7 +1806,7 @@ const RiskRetentionView: React.FC = () => {
                   letterSpacing: "0.2px",
                 }}
               >
-                {criticalCount} Critical
+                {t("risk.criticalCount", { count: criticalCount })}
               </span>
             </div>
             <p
@@ -1777,7 +1816,7 @@ const RiskRetentionView: React.FC = () => {
                 color:    "var(--p-ink-tertiary)",
               }}
             >
-              AI-powered churn prediction, expansion signals, and scenario modelling across {liveChurnCount + liveExpansionCount} accounts.
+              {t("risk.subtitleDynamic", { count: liveChurnCount + liveExpansionCount })}
             </p>
           </div>
 
@@ -1793,32 +1832,26 @@ const RiskRetentionView: React.FC = () => {
                     window.open("http://localhost:8001/api/v1/report", "_blank");
                   } else {
                     setPlaybookModal(
-                      "Export Report is unavailable (service not ready). " +
-                      "Please ensure all 5 data tables are uploaded, then try again. " +
-                      "Alternatively, use the AI Analyst to generate a narrative summary."
+                      t("risk.exportReportUnavailable")
                     );
                   }
                 } catch {
-                  setPlaybookModal("Export Report endpoint unreachable. Check backend connection.");
+                  setPlaybookModal(t("risk.exportReportUnreachable"));
                 }
               }}
             >
               <BarChart3 size={13} />
-              Export Report
+              {t("risk.exportReport")}
             </button>
             <button
               className="btn btn-primary"
               style={{ fontSize: 13 }}
               onClick={() => setPlaybookModal(
-                "Generate a complete AI retention playbook for our top at-risk accounts. " +
-                "We have 644 critical accounts with $117M ARR at risk. " +
-                "Prioritise by ARR × churn probability. Include intervention tactics per risk signal: " +
-                "feature adoption decline, support ticket spikes, champion departures, competitor evaluations. " +
-                "Format as: 1) Immediate actions (this week), 2) 30-day plan, 3) Metrics to track."
+                t("risk.runPlaybookTemplate")
               )}
             >
               <Zap size={13} />
-              Run AI Playbook
+              {t("risk.runPlaybook")}
             </button>
           </div>
         </div>
@@ -1827,7 +1860,7 @@ const RiskRetentionView: React.FC = () => {
         <div style={{ display: "flex", gap: 4, paddingBottom: 1 }}>
           <TabButton
             id="churn"
-            label="Churn Warnings"
+            label={t("risk.churnWarnings")}
             icon={<AlertTriangle size={13} />}
             count={liveChurnCount}
             activeTab={activeTab}
@@ -1835,7 +1868,7 @@ const RiskRetentionView: React.FC = () => {
           />
           <TabButton
             id="expansion"
-            label="Expansion Candidates"
+            label={t("risk.expansionCandidates")}
             icon={<TrendingUp size={13} />}
             count={liveExpansionCount}
             activeTab={activeTab}
@@ -1843,7 +1876,7 @@ const RiskRetentionView: React.FC = () => {
           />
           <TabButton
             id="simulator"
-            label="Scenario Simulator"
+            label={t("risk.scenarioSimulator")}
             icon={<SlidersHorizontal size={13} />}
             activeTab={activeTab}
             onSelect={setActiveTab}
@@ -1916,7 +1949,7 @@ const RiskRetentionView: React.FC = () => {
             onClick={e => e.stopPropagation()}
           >
             <div style={{ fontSize: 14, fontWeight: 600, color: "var(--p-ink)", marginBottom: 12 }}>
-              AI Playbook Query
+              {t("risk.playbookQueryHeader")}
             </div>
             <div style={{
               background: "var(--p-surface-1)", border: "1px solid var(--p-hairline)",
@@ -1929,7 +1962,7 @@ const RiskRetentionView: React.FC = () => {
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
               <button className="btn btn-secondary" style={{ fontSize: 12 }}
                 onClick={() => setPlaybookModal(null)}>
-                Close
+                {t("common.close")}
               </button>
               <button className="btn btn-primary" style={{ fontSize: 12 }}
                 onClick={() => {
@@ -1937,7 +1970,7 @@ const RiskRetentionView: React.FC = () => {
                   openAiPanel?.();
                   setPlaybookModal(null);
                 }}>
-                Copy to AI Analyst
+                {t("risk.copyToAIAnalyst")}
               </button>
             </div>
           </div>

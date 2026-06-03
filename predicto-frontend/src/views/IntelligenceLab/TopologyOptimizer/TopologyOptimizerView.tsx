@@ -30,7 +30,9 @@
  */
 
 import React, { useState, useCallback, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { useTopologyOptimizerMutation } from "@/hooks/useGodTierQueries";
+import { tSegment } from "@/lib/personaMapping";
 import {
   BarList,
   Table,
@@ -365,6 +367,7 @@ const SOLVER_CONFIG: Record<SolverStatus, { label: string; color: string; glow: 
 const SolverStatusBadge: React.FC<{ status: SolverStatus; objectiveValue: number }> = ({
   status, objectiveValue,
 }) => {
+  const { t } = useTranslation();
   const { label, color, glow, pulse } = SOLVER_CONFIG[status];
   const isRunning = status === "RUNNING";
 
@@ -393,7 +396,7 @@ const SolverStatusBadge: React.FC<{ status: SolverStatus; objectiveValue: number
             color: "var(--p-ink-tertiary)",
             fontFamily: "var(--font-body)",
           }}>
-            Solver Status
+            {t("topology.solverStatus")}
           </span>
         </div>
         {/* Animated indicator dot */}
@@ -421,7 +424,7 @@ const SolverStatusBadge: React.FC<{ status: SolverStatus; objectiveValue: number
             color,
             letterSpacing: "0.2px",
           }}>
-            {label}
+            {t(`topology.solverStatuses.${status}` as any, { defaultValue: label })}
           </span>
         </div>
       </div>
@@ -432,7 +435,7 @@ const SolverStatusBadge: React.FC<{ status: SolverStatus; objectiveValue: number
       {/* Objective value */}
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 6 }}>
         <span style={{ fontSize: 11, color: "var(--p-ink-tertiary)", fontFamily: "var(--font-body)" }}>
-          Objective Value
+          {t("topology.objectiveValue")}
         </span>
         <span style={{
           fontFamily: "var(--font-mono)",
@@ -563,6 +566,7 @@ const RoiPill: React.FC<{ value: number }> = ({ value }) => {
 /* ── Deadline badge ─────────────────────────────────────────────────────────── */
 
 const DeadlineBadge: React.FC<{ days: number }> = ({ days }) => {
+  const { t } = useTranslation();
   const [bg, text, border] =
     days <= 7  ? ["rgba(229,72,77,0.10)",  "#f87171", "rgba(229,72,77,0.22)"]
     : days <= 14 ? ["rgba(232,163,10,0.10)", "#fbbf24", "rgba(232,163,10,0.22)"]
@@ -576,7 +580,7 @@ const DeadlineBadge: React.FC<{ days: number }> = ({ days }) => {
       whiteSpace: "nowrap",
     }}>
       <Clock size={8} strokeWidth={2} />
-      {days}d
+      {days} {t("common.days")}
     </span>
   );
 };
@@ -584,6 +588,7 @@ const DeadlineBadge: React.FC<{ days: number }> = ({ days }) => {
 /* ── Intervention cell ──────────────────────────────────────────────────────── */
 
 const InterventionCell: React.FC<{ type: InterventionIcon; label: string }> = ({ type, label }) => {
+  const { t } = useTranslation();
   const { Icon, color, bg } = INTERVENTION_CONFIG[type];
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
@@ -598,7 +603,7 @@ const InterventionCell: React.FC<{ type: InterventionIcon; label: string }> = ({
         fontSize: 12, fontWeight: 500, color: "var(--p-ink-muted)",
         fontFamily: "var(--font-body)", whiteSpace: "nowrap",
       }}>
-        {label}
+        {t(`topology.interventions.${label}` as any, { defaultValue: t(`topology.interventions.${type}` as any, { defaultValue: label }) })}
       </span>
     </div>
   );
@@ -638,6 +643,7 @@ const formatCurrency = (n: number): string => {
 };
 
 export const TopologyOptimizerView: React.FC = () => {
+  const { t } = useTranslation();
   /* ── Slider state ─────────────────────────────────────────────────────────── */
   const [repHours,   setRepHours]   = useState(SLIDER_DEFAULTS.repHours);
   const [csmTouches, setCsmTouches] = useState(SLIDER_DEFAULTS.csmTouches);
@@ -693,17 +699,26 @@ export const TopologyOptimizerView: React.FC = () => {
 
       return [
         {
-          name:  `Rep Hours  —  ${rep ? rep.budget_used.toFixed(0) : repHours.toFixed(0)} / ${rep ? rep.budget_total : 400} h`,
+          name:  t("topology.resourceLabels.repHours", {
+            used: rep ? rep.budget_used.toFixed(0) : repHours.toFixed(0),
+            total: rep ? rep.budget_total : 400
+          }),
           value: rep ? Math.round(rep.utilisation_pct * 100) : Math.round((repHours / 400) * 100),
           icon:  () => <UserCheck size={12} color="#93c5fd" style={{ marginRight: 4 }} />,
         },
         {
-          name:  `CSM Touches  —  ${csm ? csm.budget_used : csmTouches} / ${csm ? csm.budget_total : 100} sessions`,
+          name:  t("topology.resourceLabels.csmTouches", {
+            used: csm ? csm.budget_used : csmTouches,
+            total: csm ? csm.budget_total : 100
+          }),
           value: csm ? Math.round(csm.utilisation_pct * 100) : Math.round((csmTouches / 100) * 100),
           icon:  () => <Headphones size={12} color="#4ade80" style={{ marginRight: 4 }} />,
         },
         {
-          name:  `Campaign Spend  —  $${cam ? (cam.budget_used/1000).toFixed(1) : campaignK}K / $${cam ? (cam.budget_total/1000).toFixed(0) : 50}K`,
+          name:  t("topology.resourceLabels.campaignSpend", {
+            used: cam ? (cam.budget_used/1000).toFixed(1) : campaignK.toFixed(1),
+            total: cam ? (cam.budget_total/1000).toFixed(0) : 50
+          }),
           value: cam ? Math.round(cam.utilisation_pct * 100) : Math.round((campaignK / 50) * 100),
           icon:  () => <Megaphone size={12} color="#fbbf24" style={{ marginRight: 4 }} />,
         },
@@ -712,22 +727,22 @@ export const TopologyOptimizerView: React.FC = () => {
     
     return [
       {
-        name:  `Rep Hours  —  ${repHours.toFixed(0)} / 400 h`,
+        name:  t("topology.resourceLabels.repHours", { used: repHours.toFixed(0), total: 400 }),
         value: Math.round((repHours / 400) * 100),
         icon:  () => <UserCheck size={12} color="#93c5fd" style={{ marginRight: 4 }} />,
       },
       {
-        name:  `CSM Touches  —  ${csmTouches} / 100 sessions`,
+        name:  t("topology.resourceLabels.csmTouches", { used: csmTouches, total: 100 }),
         value: Math.round((csmTouches / 100) * 100),
         icon:  () => <Headphones size={12} color="#4ade80" style={{ marginRight: 4 }} />,
       },
       {
-        name:  `Campaign Spend  —  $${campaignK}K / $50K`,
+        name:  t("topology.resourceLabels.campaignSpend", { used: campaignK.toFixed(1), total: 50 }),
         value: Math.round((campaignK / 50) * 100),
         icon:  () => <Megaphone size={12} color="#fbbf24" style={{ marginRight: 4 }} />,
       },
     ];
-  }, [repHours, csmTouches, campaignK, optimizerData]);
+  }, [repHours, csmTouches, campaignK, optimizerData, t]);
 
   /* ── Portfolio summary metrics (react to sliders) ────────────────────────── */
   const totalArrRetained = useMemo(() => {
@@ -842,14 +857,14 @@ export const TopologyOptimizerView: React.FC = () => {
               letterSpacing: "-0.2px",
               color: "var(--p-ink)",
             }}>
-              Optimizer Controls
+              {t("topology.controls")}
             </span>
           </div>
           <p style={{
             fontSize: 11, color: "var(--p-ink-tertiary)",
             fontFamily: "var(--font-body)", lineHeight: 1.5, marginTop: 2,
           }}>
-            Adjust resource budgets. The LP re-scores allocations in real time.
+            {t("topology.subtitle")}
           </p>
         </div>
 
@@ -866,8 +881,8 @@ export const TopologyOptimizerView: React.FC = () => {
           {/* Sliders */}
           <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
             <SliderControl
-              label="Rep Hours"
-              sublabel="Sales rep time budget"
+              label={t("topology.sliders.repHours.label")}
+              sublabel={t("topology.sliders.repHours.sublabel")}
               value={repHours}
               min={20} max={400} step={10}
               unit="h"
@@ -876,8 +891,8 @@ export const TopologyOptimizerView: React.FC = () => {
             />
 
             <SliderControl
-              label="CSM Touches"
-              sublabel="Customer success sessions"
+              label={t("topology.sliders.csmTouches.label")}
+              sublabel={t("topology.sliders.csmTouches.sublabel")}
               value={csmTouches}
               min={5} max={100} step={1}
               unit=" sessions"
@@ -886,8 +901,8 @@ export const TopologyOptimizerView: React.FC = () => {
             />
 
             <SliderControl
-              label="Campaign Spend"
-              sublabel="Marketing budget ceiling"
+              label={t("topology.sliders.campaignSpend.label")}
+              sublabel={t("topology.sliders.campaignSpend.sublabel")}
               value={campaignK}
               min={1} max={50} step={1}
               unit="K"
@@ -897,14 +912,14 @@ export const TopologyOptimizerView: React.FC = () => {
             />
 
             <SliderControl
-              label="Churn Weight"
-              sublabel="Churn vs ARR retention mix"
+              label={t("topology.sliders.churnWeight.label")}
+              sublabel={t("topology.sliders.churnWeight.sublabel")}
               value={churnWeight}
               min={0} max={1} step={0.05}
               unit=""
               color="#828fff"
               onChange={setChurnWeight}
-              formatValue={(v) => `${(v * 100).toFixed(0)}% churn`}
+              formatValue={(v) => t("topology.sliders.churnWeight.format", { pct: (v * 100).toFixed(0) })}
             />
           </div>
 
@@ -918,13 +933,13 @@ export const TopologyOptimizerView: React.FC = () => {
               textTransform: "uppercase", color: "var(--p-ink-tertiary)",
               fontFamily: "var(--font-body)",
             }}>
-              Estimated Cost
+              {t("topology.estimatedCost")}
             </span>
             {[
-              { label: "Rep cost",      value: formatCurrency(repHours * 150),    color: "#93c5fd" },
-              { label: "CSM cost",      value: formatCurrency(csmTouches * 200),  color: "#4ade80" },
-              { label: "Campaign",      value: formatCurrency(campaignK * 1_000), color: "#fbbf24" },
-              { label: "Total budget",  value: formatCurrency(totalCost),          color: "var(--p-ink-muted)" },
+              { label: t("topology.repCost"),      value: formatCurrency(repHours * 150),    color: "#93c5fd" },
+              { label: t("topology.csmCost"),      value: formatCurrency(csmTouches * 200),  color: "#4ade80" },
+              { label: t("topology.campaign"),      value: formatCurrency(campaignK * 1_000), color: "#fbbf24" },
+              { label: t("topology.totalBudget"),  value: formatCurrency(totalCost),          color: "var(--p-ink-muted)" },
             ].map(({ label, value, color }) => (
               <div key={label} style={{
                 display: "flex", justifyContent: "space-between",
@@ -957,11 +972,11 @@ export const TopologyOptimizerView: React.FC = () => {
               transition: "all 200ms ease",
               boxShadow:  isSolving ? "none" : "0 0 16px rgba(94,106,210,0.25)",
             }}
-            aria-label="Run optimizer"
+            aria-label={t("topology.runOptimizer")}
           >
             {isSolving
-              ? <><RefreshCw size={14} style={{ animation: "spin 1s linear infinite" }} /> Solving…</>
-              : <><Play size={14} strokeWidth={2} /> Run Optimizer</>
+              ? <><RefreshCw size={14} style={{ animation: "spin 1s linear infinite" }} /> {t("topology.solving")}</>
+              : <><Play size={14} strokeWidth={2} /> {t("topology.runOptimizer")}</>
             }
           </button>
 
@@ -970,7 +985,7 @@ export const TopologyOptimizerView: React.FC = () => {
             fontSize: 10, color: "var(--p-ink-tertiary)",
             fontFamily: "var(--font-body)", lineHeight: 1.5, textAlign: "center",
           }}>
-            LP solver via SciPy HiGHS · 3-budget MILP relaxation
+            {t("topology.scipyHint")}
           </p>
         </div>
       </aside>
@@ -1003,11 +1018,11 @@ export const TopologyOptimizerView: React.FC = () => {
           {/* Breadcrumb */}
           <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
             <span style={{ fontSize: 12, color: "var(--p-ink-tertiary)", fontFamily: "var(--font-body)" }}>
-              Intelligence Lab
+              {t("topology.breadcrumbs.intelligenceLab")}
             </span>
             <ChevronRight size={12} color="var(--p-ink-tertiary)" />
             <span style={{ fontSize: 12, color: "var(--p-ink-muted)", fontFamily: "var(--font-body)", fontWeight: 500 }}>
-              Topology Optimizer
+              {t("topology.breadcrumbs.topologyOptimizer")}
             </span>
             {/* Solver badge */}
             <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
@@ -1022,7 +1037,7 @@ export const TopologyOptimizerView: React.FC = () => {
                   fontFamily: "var(--font-mono)", fontSize: 10,
                   color: SOLVER_CONFIG[solverStatus].color, fontWeight: 500,
                 }}>
-                  {solverStatus}
+                  {t(`topology.solverStatuses.${solverStatus}` as any, { defaultValue: solverStatus })}
                 </span>
               </div>
             </div>
@@ -1036,7 +1051,7 @@ export const TopologyOptimizerView: React.FC = () => {
               display: "flex", alignItems: "center", gap: 5,
             }}>
               <Clock size={11} strokeWidth={1.5} />
-              Last solved {lastSolved}
+              {t("topology.lastSolved", { time: lastSolved })}
             </span>
             <div style={{
               height: 16, width: 1, background: "var(--p-hairline-strong)",
@@ -1047,7 +1062,7 @@ export const TopologyOptimizerView: React.FC = () => {
               display: "flex", alignItems: "center", gap: 5,
             }}>
               <Users size={11} strokeWidth={1.5} />
-              {activeSchedule.length} customers optimized
+              {t("topology.optimizedCount", { count: activeSchedule.length })}
             </span>
           </div>
         </div>
@@ -1062,7 +1077,7 @@ export const TopologyOptimizerView: React.FC = () => {
           <section>
             <div className="zone-header">
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span className="zone-title">Resource Utilisation</span>
+                <span className="zone-title">{t("topology.resourceUtilisation")}</span>
                 <span style={{
                   fontFamily: "var(--font-mono)", fontSize: 10,
                   color: "var(--p-ink-tertiary)",
@@ -1071,7 +1086,7 @@ export const TopologyOptimizerView: React.FC = () => {
                   borderRadius: "var(--radius-sm)",
                   padding: "1px 6px",
                 }}>
-                  % of budget consumed
+                  {t("topology.budgetConsumed")}
                 </span>
               </div>
               <Zap size={13} color="var(--p-ink-tertiary)" strokeWidth={1.5} />
@@ -1101,10 +1116,10 @@ export const TopologyOptimizerView: React.FC = () => {
                 flexWrap:      "wrap",
               }}>
                 {[
-                  { label: "Rep cost/hr",   value: "$150",                     color: "#93c5fd" },
-                  { label: "CSM cost/session", value: "$200",                  color: "#4ade80" },
-                  { label: "n_variables",   value: `${activeSchedule.length * 3}`, color: "var(--p-ink-subtle)" },
-                  { label: "n_constraints", value: `${3 + activeSchedule.length * 3}`, color: "var(--p-ink-subtle)" },
+                  { label: t("topology.repCostHr"),   value: "$150",                     color: "#93c5fd" },
+                  { label: t("topology.csmCostSession"), value: "$200",                  color: "#4ade80" },
+                  { label: t("topology.nVariables"),   value: `${activeSchedule.length * 3}`, color: "var(--p-ink-subtle)" },
+                  { label: t("topology.nConstraints"), value: `${3 + activeSchedule.length * 3}`, color: "var(--p-ink-subtle)" },
                 ].map(({ label, value, color }) => (
                   <div key={label} style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                     <span style={{ fontSize: 10, color: "var(--p-ink-tertiary)", fontFamily: "var(--font-body)", letterSpacing: "0.3px", textTransform: "uppercase" }}>
@@ -1122,29 +1137,29 @@ export const TopologyOptimizerView: React.FC = () => {
           {/* ── Zone B: Portfolio Summary tiles ──────────────────────────────── */}
           <section>
             <div className="zone-header">
-              <span className="zone-title">Portfolio Impact</span>
+              <span className="zone-title">{t("topology.portfolioImpact")}</span>
             </div>
             <div style={{ display: "flex", gap: 12 }}>
               <StatTile
                 Icon={DollarSign}
                 iconColor="#828fff"
-                label="ARR Projected Retained"
+                label={t("topology.arrRetained")}
                 value={formatCurrency(totalArrRetained)}
-                sub={`from ${activeSchedule.length} at-risk customers`}
+                sub={t("topology.atRiskCustomers", { count: activeSchedule.length })}
               />
               <StatTile
                 Icon={TrendingUp}
                 iconColor="#4ade80"
-                label="Portfolio ROI"
+                label={t("topology.portfolioRoi")}
                 value={`${portfolioROI.toFixed(1)}×`}
-                sub="retained / total cost"
+                sub={t("topology.retainedTotalCost")}
               />
               <StatTile
                 Icon={Target}
                 iconColor="#fbbf24"
-                label="Total Resource Cost"
+                label={t("topology.totalResourceCost")}
                 value={formatCurrency(totalCost)}
-                sub="rep + CSM + campaign"
+                sub={t("topology.repCsmCampaign")}
               />
             </div>
           </section>
@@ -1153,7 +1168,7 @@ export const TopologyOptimizerView: React.FC = () => {
           <section style={{ flex: 1, minHeight: 0 }}>
             <div className="zone-header">
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span className="zone-title">Master Schedule</span>
+                <span className="zone-title">{t("topology.masterSchedule")}</span>
                 <span style={{
                   display: "inline-flex", alignItems: "center", gap: 4,
                   fontFamily: "var(--font-mono)", fontSize: 10,
@@ -1164,11 +1179,11 @@ export const TopologyOptimizerView: React.FC = () => {
                   padding: "2px 8px",
                 }}>
                   <CheckCircle2 size={9} strokeWidth={2.5} />
-                  {activeSchedule.length} actions queued
+                  {t("topology.actionsQueued", { count: activeSchedule.length })}
                 </span>
               </div>
               <span style={{ fontSize: 11, color: "var(--p-ink-tertiary)", fontFamily: "var(--font-body)" }}>
-                Sorted by ROI — act on rank 1 first
+                {t("topology.sortedByRoi")}
               </span>
             </div>
 
@@ -1183,15 +1198,15 @@ export const TopologyOptimizerView: React.FC = () => {
                 <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 780 }}>
                   <thead>
                     <tr>
-                      <th style={{ ...TH, width: 44, textAlign: "center" }}>#</th>
-                      <th style={{ ...TH }}>Customer</th>
-                      <th style={{ ...TH }}>Segment</th>
-                      <th style={{ ...TH, textAlign: "right" }}>ARR</th>
-                      <th style={{ ...TH }}>Churn Risk</th>
-                      <th style={{ ...TH }}>Intervention</th>
-                      <th style={{ ...TH, textAlign: "right" }}>ARR Retained</th>
-                      <th style={{ ...TH, textAlign: "center" }}>ROI</th>
-                      <th style={{ ...TH, textAlign: "center" }}>Act by</th>
+                      <th style={{ ...TH, width: 44, textAlign: "center" }}>{t("topology.headers.rank")}</th>
+                      <th style={{ ...TH }}>{t("topology.headers.customer")}</th>
+                      <th style={{ ...TH }}>{t("topology.headers.segment")}</th>
+                      <th style={{ ...TH, textAlign: "right" }}>{t("topology.headers.arr")}</th>
+                      <th style={{ ...TH }}>{t("topology.headers.churnRisk")}</th>
+                      <th style={{ ...TH }}>{t("topology.headers.intervention")}</th>
+                      <th style={{ ...TH, textAlign: "right" }}>{t("topology.headers.arrRetained")}</th>
+                      <th style={{ ...TH, textAlign: "center" }}>{t("topology.headers.roi")}</th>
+                      <th style={{ ...TH, textAlign: "center" }}>{t("topology.headers.actBy")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1252,7 +1267,7 @@ export const TopologyOptimizerView: React.FC = () => {
                               fontFamily: "var(--font-body)",
                               whiteSpace: "nowrap",
                             }}>
-                              {row.segment}
+                              {tSegment(row.segment)}
                             </span>
                           </td>
 
@@ -1313,13 +1328,13 @@ export const TopologyOptimizerView: React.FC = () => {
                 justifyContent: "space-between",
               }}>
                 <span style={{ fontSize: 11, color: "var(--p-ink-tertiary)", fontFamily: "var(--font-body)" }}>
-                  Showing all {activeSchedule.length} customers · churn threshold ≥ 40%
+                  {t("topology.showingAllCustomers", { count: activeSchedule.length })}
                 </span>
                 <span style={{
                   fontFamily: "var(--font-mono)", fontSize: 11,
                   color: "var(--p-ink-tertiary)",
                 }}>
-                  {formatCurrency(activeSchedule.reduce((s, r) => s + r.arr, 0))} total ARR at risk
+                  {t("topology.totalArrAtRisk", { value: formatCurrency(activeSchedule.reduce((s, r) => s + r.arr, 0)) })}
                 </span>
               </div>
             </div>
