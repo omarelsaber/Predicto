@@ -23,6 +23,8 @@
 
 import React, { useState, useMemo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
+import { useWarRoomQuery } from "@/hooks/useGodTierQueries";
 import { ScatterChart, Card } from "@tremor/react";
 import {
   ChevronDown,
@@ -48,6 +50,7 @@ import {
   ChevronRight,
   Lock,
   Unlock,
+  ArrowRight,
 } from "lucide-react";
 
 /* =============================================================================
@@ -1218,7 +1221,11 @@ const CompetitorIntelPanel: React.FC<{ profile: CompetitorProfile }> = ({ profil
 ============================================================================= */
 
 const WarRoomView: React.FC = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const navigate = useNavigate();
+  const { data, isLoading } = useWarRoomQuery();
+  const isOffline = !data || data.data_availability === "OFFLINE";
+
   // ── State ──────────────────────────────────────────────────────────────────
   const [selectedDealId,       setSelectedDealId]       = useState("D-1187");
   const [selectedCompetitorId, setSelectedCompetitorId] = useState("salesforce");
@@ -1266,6 +1273,79 @@ const WarRoomView: React.FC = () => {
   const handleMoveToggle = useCallback((id: string) => {
     setExpandedMoveId(prev => prev === id ? null : id);
   }, []);
+
+  if (!isLoading && isOffline) {
+    return (
+      <div
+        className="animate-fade-in"
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          minHeight: "70vh",
+          padding: "var(--spacing-xl)",
+          textAlign: "center",
+          maxWidth: 600,
+          margin: "0 auto",
+        }}
+      >
+        <div
+          style={{
+            width: 80,
+            height: 80,
+            borderRadius: "50%",
+            background: "linear-gradient(135deg, rgba(94,106,210,0.15) 0%, rgba(94,106,210,0.02) 100%)",
+            border: "1px solid rgba(94,106,210,0.25)",
+            boxShadow: "0 0 40px rgba(94, 106, 210, 0.15)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            marginBottom: 24,
+          }}
+        >
+          <Swords size={32} color="var(--p-primary-hover)" />
+        </div>
+        <h2
+          style={{
+            fontSize: 22,
+            fontWeight: 600,
+            color: "var(--p-ink)",
+            marginBottom: 12,
+            fontFamily: "var(--font-display)",
+            letterSpacing: "-0.5px",
+          }}
+        >
+          {t("common.emptyState.title")}
+        </h2>
+        <p
+          style={{
+            fontSize: 14,
+            color: "var(--p-ink-tertiary)",
+            lineHeight: 1.6,
+            marginBottom: 32,
+            fontFamily: "var(--font-body)",
+          }}
+        >
+          {t("common.emptyState.description")}
+        </p>
+        <button
+          className="btn btn-primary"
+          onClick={() => navigate("/data-workspace")}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 8,
+            padding: "10px 24px",
+            fontSize: 14,
+          }}
+        >
+          {t("common.emptyState.action")}
+          <ArrowRight size={16} style={{ transform: i18n.dir() === "rtl" ? "rotate(180deg)" : "none" }} />
+        </button>
+      </div>
+    );
+  }
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (

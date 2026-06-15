@@ -600,6 +600,8 @@ interface ChatMessage {
   timestamp: Date;
 }
 
+const AI_API_URL = import.meta.env.VITE_API_URL || "http://localhost:8001";
+
 const AiAnalystPanel: React.FC<{ open: boolean; onClose: () => void }> = ({
   open,
   onClose,
@@ -608,10 +610,11 @@ const AiAnalystPanel: React.FC<{ open: boolean; onClose: () => void }> = ({
   const userName = useUserName();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleSend = useCallback(() => {
     const trimmed = input.trim();
-    if (!trimmed) return;
+    if (!trimmed || isLoading) return;
 
     const userMsg: ChatMessage = {
       id: Date.now().toString(),
@@ -620,8 +623,9 @@ const AiAnalystPanel: React.FC<{ open: boolean; onClose: () => void }> = ({
       timestamp: new Date(),
     };
 
+    const aiPlaceholderId = (Date.now() + 1).toString();
     const aiMsg: ChatMessage = {
-      id: (Date.now() + 1).toString(),
+      id: aiPlaceholderId,
       role: "ai",
       content: t("aiPanel.analyzingQuery", "Analyzing your query against current pipeline data and revenue signals…"),
       timestamp: new Date(),
@@ -629,7 +633,54 @@ const AiAnalystPanel: React.FC<{ open: boolean; onClose: () => void }> = ({
 
     setMessages((prev) => [...prev, userMsg, aiMsg]);
     setInput("");
-  }, [input, t]);
+    setIsLoading(true);
+
+    // Build history for backend (map "ai" -> "assistant")
+    const backendHistory = messages.map((m) => ({
+      role: m.role === "ai" ? "assistant" as const : "user" as const,
+      content: m.content,
+    }));
+
+    fetch(`${AI_API_URL}/analyst/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message: trimmed,
+        history: backendHistory,
+        max_tokens: 600,
+      }),
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then((data: { reply: string }) => {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === aiPlaceholderId
+              ? { ...m, content: data.reply, timestamp: new Date() }
+              : m
+          )
+        );
+      })
+      .catch(() => {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === aiPlaceholderId
+              ? {
+                  ...m,
+                  content: t(
+                    "aiPanel.error",
+                    "Sorry, I couldn't process your request. Please try again."
+                  ),
+                  timestamp: new Date(),
+                }
+              : m
+          )
+        );
+      })
+      .finally(() => setIsLoading(false));
+  }, [input, isLoading, messages, t]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -637,6 +688,72 @@ const AiAnalystPanel: React.FC<{ open: boolean; onClose: () => void }> = ({
       handleSend();
     }
   };
+
+  /** Send a specific text directly (used by suggested prompt chips) */
+  const handleSendDirect = useCallback(
+    (text: string) => {
+      if (isLoading) return;
+      setInput(text);
+      // Use setTimeout to let React flush the setInput, then trigger send
+      setTimeout(() => {
+        const userMsg: ChatMessage = {
+          id: Date.now().toString(),
+          role: "user",
+          content: text,
+          timestamp: new Date(),
+        };
+        const aiPlaceholderId = (Date.now() + 1).toString();
+        const aiMsg: ChatMessage = {
+          id: aiPlaceholderId,
+          role: "ai",
+          content: t("aiPanel.analyzingQuery", "Analyzing your query against current pipeline data and revenue signals…"),
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, userMsg, aiMsg]);
+        setInput("");
+        setIsLoading(true);
+
+        const backendHistory = messages.map((m) => ({
+          role: m.role === "ai" ? "assistant" as const : "user" as const,
+          content: m.content,
+        }));
+
+        fetch(`${AI_API_URL}/analyst/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: text, history: backendHistory, max_tokens: 600 }),
+        })
+          .then((res) => {
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return res.json();
+          })
+          .then((data: { reply: string }) => {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === aiPlaceholderId
+                  ? { ...m, content: data.reply, timestamp: new Date() }
+                  : m
+              )
+            );
+          })
+          .catch(() => {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === aiPlaceholderId
+                  ? {
+                      ...m,
+                      content: t("aiPanel.error", "Sorry, I couldn't process your request. Please try again."),
+                      timestamp: new Date(),
+                    }
+                  : m
+              )
+            );
+          })
+          .finally(() => setIsLoading(false));
+      }, 0);
+    },
+    [isLoading, messages, t]
+  );
 
   const SUGGESTED = [
     t("aiPanel.suggestChurn", "What's driving churn this quarter?"),
@@ -707,7 +824,7 @@ const AiAnalystPanel: React.FC<{ open: boolean; onClose: () => void }> = ({
         {SUGGESTED.map((s) => (
           <button
             key={s}
-            onClick={() => setInput(s)}
+            onClick={() => handleSendDirect(s)}
             style={{
               background: "var(--p-surface-2)",
               border: "1px solid var(--p-hairline)",
@@ -805,6 +922,7 @@ const AiAnalystPanel: React.FC<{ open: boolean; onClose: () => void }> = ({
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={t("aiPanel.placeholder", "Ask about your revenue…")}
+            disabled={isLoading}
             style={{
               flex: 1,
               background: "transparent",
@@ -814,13 +932,14 @@ const AiAnalystPanel: React.FC<{ open: boolean; onClose: () => void }> = ({
               fontSize: 13,
               fontFamily: "var(--font-body)",
               minWidth: 0,
+              opacity: isLoading ? 0.6 : 1,
             }}
           />
           <button
             onClick={handleSend}
-            disabled={!input.trim()}
+            disabled={!input.trim() || isLoading}
             style={{
-              background: input.trim()
+              background: input.trim() && !isLoading
                 ? "var(--p-primary)"
                 : "var(--p-surface-3)",
               border: "none",
@@ -830,7 +949,7 @@ const AiAnalystPanel: React.FC<{ open: boolean; onClose: () => void }> = ({
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              cursor: input.trim() ? "pointer" : "default",
+              cursor: input.trim() && !isLoading ? "pointer" : "default",
               transition: "background 120ms",
               flexShrink: 0,
             }}

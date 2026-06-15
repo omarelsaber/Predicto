@@ -42,6 +42,7 @@
  */
 
 import React, { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useCounterfactualQuery } from "@/hooks/useGodTierQueries";
 import { tSegment } from "@/lib/personaMapping";
@@ -70,6 +71,7 @@ import {
   BarChart2,
   Atom,
   RefreshCw,
+  ArrowRight,
 } from "lucide-react";
 
 /* =============================================================================
@@ -754,7 +756,8 @@ const computeHistogram = (cates: {cate: number}[]) => {
 };
 
 export const CausalEngineView: React.FC = () => {
-  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const { t, i18n } = useTranslation();
   const [treatment, setTreatment] = useState<TreatmentType>("DISCOUNT_APPLIED");
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -867,7 +870,80 @@ export const CausalEngineView: React.FC = () => {
     verticalAlign: "middle",
   };
 
-  /* ── ATE direction for display ───────────────────────────────────────────── */
+  if (!isLoading && isOffline) {
+    return (
+      <div
+        className="animate-fade-in"
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          minHeight: "70vh",
+          padding: "var(--spacing-xl)",
+          textAlign: "center",
+          maxWidth: 600,
+          margin: "0 auto",
+          width: "100%",
+        }}
+      >
+        <div
+          style={{
+            width: 80,
+            height: 80,
+            borderRadius: "50%",
+            background: "linear-gradient(135deg, rgba(94,106,210,0.15) 0%, rgba(94,106,210,0.02) 100%)",
+            border: "1px solid rgba(94,106,210,0.25)",
+            boxShadow: "0 0 40px rgba(94, 106, 210, 0.15)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            marginBottom: 24,
+          }}
+        >
+          <Atom size={32} color="var(--p-primary-hover)" />
+        </div>
+        <h2
+          style={{
+            fontSize: 22,
+            fontWeight: 600,
+            color: "var(--p-ink)",
+            marginBottom: 12,
+            fontFamily: "var(--font-display)",
+            letterSpacing: "-0.5px",
+          }}
+        >
+          {t("common.emptyState.title")}
+        </h2>
+        <p
+          style={{
+            fontSize: 14,
+            color: "var(--p-ink-tertiary)",
+            lineHeight: 1.6,
+            marginBottom: 32,
+            fontFamily: "var(--font-body)",
+          }}
+        >
+          {t("common.emptyState.description")}
+        </p>
+        <button
+          className="btn btn-primary"
+          onClick={() => navigate("/data-workspace")}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 8,
+            padding: "10px 24px",
+            fontSize: 14,
+          }}
+        >
+          {t("common.emptyState.action")}
+          <ArrowRight size={16} style={{ transform: i18n.dir() === "rtl" ? "rotate(180deg)" : "none" }} />
+        </button>
+      </div>
+    );
+  }
+
   const ateIsNegative = summary.ate < 0;  // negative CATE = treatment helped
   const ateColor = ateIsNegative ? "#4ade80" : "#f87171";
 

@@ -162,49 +162,7 @@ const REPORT_TEMPLATES: ReportTemplate[] = [
   },
 ];
 
-const RECENT_REPORTS: RecentReport[] = [
-  {
-    id: "rr-1",
-    title: "Executive Intelligence Report",
-    generatedAt: "Today, 11:22 AM",
-    generatedBy: "Alex Rivera",
-    fileSize: "2.4 MB",
-    status: "completed",
-    downloadUrl: "/api/v1/report",
-  },
-  {
-    id: "rr-2",
-    title: "Revenue Forecast Summary",
-    generatedAt: "Yesterday, 3:45 PM",
-    generatedBy: "Alex Rivera",
-    fileSize: "1.1 MB",
-    status: "completed",
-  },
-  {
-    id: "rr-3",
-    title: "Churn Risk Audit",
-    generatedAt: "May 22, 2026",
-    generatedBy: "System (Scheduled)",
-    fileSize: "3.8 MB",
-    status: "completed",
-  },
-  {
-    id: "rr-4",
-    title: "Customer Persona Analysis",
-    generatedAt: "May 21, 2026",
-    generatedBy: "Alex Rivera",
-    fileSize: "1.6 MB",
-    status: "completed",
-  },
-  {
-    id: "rr-5",
-    title: "Competitive Intelligence Briefing",
-    generatedAt: "May 20, 2026",
-    generatedBy: "System (Scheduled)",
-    fileSize: "890 KB",
-    status: "failed",
-  },
-];
+const RECENT_REPORTS: RecentReport[] = [];
 
 /* =============================================================================
    HELPER: Generate report via backend
@@ -303,7 +261,7 @@ const TagPill: React.FC<{ label: string }> = ({ label }) => {
 ============================================================================= */
 
 const ReportsView: React.FC = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const userName = useUserName();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<ReportCategory | "all">("all");
@@ -327,13 +285,15 @@ const ReportsView: React.FC = () => {
     });
   }, []);
 
-  const openExecReport = useCallback(async () => {
-    setGenerating("exec-intelligence");
+  const generateReport = useCallback(async (type: string) => {
+    setGenerating(type);
+    const lang = i18n.language || "en";
+    const reportUrl = `${API_BASE}/api/v1/report?type=${type}&lang=${lang}`;
     try {
-      const res = await fetch(`${API_BASE}/api/v1/report`);
+      const res = await fetch(reportUrl);
       if (res.ok) {
         // Open in a new tab
-        window.open(`${API_BASE}/api/v1/report`, "_blank");
+        window.open(reportUrl, "_blank");
         showToast(t("reports.toast.opened"), "success");
       } else if (res.status === 503) {
         showToast(t("reports.toast.notReady"), "error");
@@ -345,18 +305,11 @@ const ReportsView: React.FC = () => {
     } finally {
       setGenerating(null);
     }
-  }, [showToast, t]);
+  }, [showToast, t, i18n.language]);
 
   const handleGenerate = useCallback((template: ReportTemplate) => {
-    if (template.id === "exec-intelligence") {
-      openExecReport();
-      return;
-    }
-    setGenerating(template.id);
-    const translatedTitle = t(`reports.templates.${template.id}.title`, { defaultValue: template.title });
-    showToast(t("reports.toast.comingSoon", { title: translatedTitle }), "info");
-    setTimeout(() => setGenerating(null), 2000);
-  }, [openExecReport, showToast, t]);
+    generateReport(template.id);
+  }, [generateReport]);
 
   const filteredTemplates = REPORT_TEMPLATES.filter(t => {
     if (selectedCategory !== "all" && t.category !== selectedCategory) return false;
@@ -479,7 +432,7 @@ const ReportsView: React.FC = () => {
 
         {/* Quick generate button */}
         <button
-          onClick={openExecReport}
+          onClick={() => generateReport("exec-intelligence")}
           disabled={generating === "exec-intelligence"}
           style={{
             display: "flex", alignItems: "center", gap: 8,

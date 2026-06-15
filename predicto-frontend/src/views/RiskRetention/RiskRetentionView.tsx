@@ -11,6 +11,7 @@
  */
 
 import React, { useState, useCallback, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { createPortal } from "react-dom";
 import {
   Card,
@@ -45,6 +46,7 @@ import {
   Cpu,
   Star,
   Info,
+  ArrowRight,
 } from "lucide-react";
 import { useShell } from "@/components/shell/AppShell";
 import { useTranslation } from "react-i18next";
@@ -1718,28 +1720,121 @@ const ScenarioSimulatorTab: React.FC = () => {
    ========================================================================== */
 
 const RiskRetentionView: React.FC = () => {
+  const navigate = useNavigate();
   const { openAiPanel } = useShell();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [activeTab, setActiveTab] = useState<TabId>("churn");
   const [liveChurnCount,     setLiveChurnCount]     = useState<number>(0);
   const [liveExpansionCount, setLiveExpansionCount] = useState<number>(0);
   const [criticalCount, setCriticalCount] = useState<number>(0);
   const [playbookModal, setPlaybookModal] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [hasRealData, setHasRealData] = useState<boolean | null>(null);
 
   useEffect(() => {
-    fetch("http://localhost:8001/api/v2/churn/competitive?limit=1")
-      .then(r => r.json())
-      .then(d => {
-        if (d?.total_customers > 0) setLiveChurnCount(d.total_customers);
-        if (d?.critical_count !== undefined) setCriticalCount(d.critical_count);
+    setIsLoading(true);
+    const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8001";
+    
+    Promise.all([
+      fetch(`${API_URL}/api/v2/churn/competitive?limit=1`).then(r => r.json()).catch(() => null),
+      fetch(`${API_URL}/api/v2/expansion/candidates`).then(r => r.json()).catch(() => null)
+    ])
+      .then(([churnRes, expansionRes]) => {
+        const hasData = (churnRes && churnRes.data_availability !== "OFFLINE") ||
+                        (expansionRes && expansionRes.data_availability !== "OFFLINE");
+        
+        setHasRealData(hasData);
+        if (hasData) {
+          if (churnRes?.total_customers > 0) setLiveChurnCount(churnRes.total_customers);
+          if (churnRes?.critical_count !== undefined) setCriticalCount(churnRes.critical_count);
+          if (expansionRes?.total_candidates > 0) setLiveExpansionCount(expansionRes.total_candidates);
+        } else {
+          setLiveChurnCount(0);
+          setCriticalCount(0);
+          setLiveExpansionCount(0);
+        }
       })
-      .catch(() => {});
-
-    fetch("http://localhost:8001/api/v2/expansion/candidates")
-      .then(r => r.json())
-      .then(d => { if (d?.total_candidates > 0) setLiveExpansionCount(d.total_candidates); })
-      .catch(() => {});
+      .catch((err) => {
+        console.error("Risk retention fetch failed:", err);
+        setHasRealData(false);
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
   }, []);
+
+  if (!isLoading && hasRealData === false) {
+    return (
+      <div
+        className="animate-fade-in"
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          minHeight: "70vh",
+          padding: "var(--spacing-xl)",
+          textAlign: "center",
+          maxWidth: 600,
+          margin: "0 auto",
+        }}
+      >
+        <div
+          style={{
+            width: 80,
+            height: 80,
+            borderRadius: "50%",
+            background: "linear-gradient(135deg, rgba(229,72,77,0.15) 0%, rgba(229,72,77,0.02) 100%)",
+            border: "1px solid rgba(229,72,77,0.25)",
+            boxShadow: "0 0 40px rgba(229, 72, 77, 0.15)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            marginBottom: 24,
+          }}
+        >
+          <Shield size={32} color="var(--p-danger)" />
+        </div>
+        <h2
+          style={{
+            fontSize: 22,
+            fontWeight: 600,
+            color: "var(--p-ink)",
+            marginBottom: 12,
+            fontFamily: "var(--font-display)",
+            letterSpacing: "-0.5px",
+          }}
+        >
+          {t("common.emptyState.title")}
+        </h2>
+        <p
+          style={{
+            fontSize: 14,
+            color: "var(--p-ink-tertiary)",
+            lineHeight: 1.6,
+            marginBottom: 32,
+            fontFamily: "var(--font-body)",
+          }}
+        >
+          {t("common.emptyState.description")}
+        </p>
+        <button
+          className="btn btn-primary"
+          onClick={() => navigate("/data-workspace")}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 8,
+            padding: "10px 24px",
+            fontSize: 14,
+          }}
+        >
+          {t("common.emptyState.action")}
+          <ArrowRight size={16} style={{ transform: i18n.dir() === "rtl" ? "rotate(180deg)" : "none" }} />
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div

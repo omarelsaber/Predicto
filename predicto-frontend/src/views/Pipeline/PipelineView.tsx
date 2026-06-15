@@ -18,6 +18,7 @@
  */
 
 import React, { useState, useMemo, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { tSegment } from "@/lib/personaMapping";
 // query imports removed for stability
@@ -40,6 +41,7 @@ import {
   X,
   CheckCircle2,
   Info,
+  ArrowRight,
 } from "lucide-react";
 
 /* =============================================================================
@@ -998,63 +1000,122 @@ const humanizeId = (id: string, type: "rep" | "deal") => {
 };
 
 export const PipelineView: React.FC = () => {
+  const navigate = useNavigate();
   const { t, i18n } = useTranslation();
+  const [deals, setDeals] = useState<DealRecord[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [hasRealData, setHasRealData] = useState<boolean | null>(null);
+
   const [liveTotalArr, setLiveTotalArr] = useState<number | null>(null);
   const [liveWeightedArr, setLiveWeightedArr] = useState<number | null>(null);
   const [liveAvgWinProb, setLiveAvgWinProb] = useState<number | null>(null);
   const [liveDiscountRisk, setLiveDiscountRisk] = useState<number | null>(null);
 
   useEffect(() => {
-    fetch("http://localhost:8001/api/v2/deals/priority?limit=500")
+    setIsLoading(true);
+    const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8001";
+    fetch(`${API_URL}/api/v2/deals/priority?limit=500`)
       .then((r) => r.json())
       .then((data) => {
-        const deals = data?.deals ?? [];
-        if (deals.length === 0) return;
+        const hasData = data && data.data_availability !== "OFFLINE" && Array.isArray(data.deals) && data.deals.length > 0;
+        setHasRealData(hasData);
+        if (hasData) {
+          const mappedDeals: DealRecord[] = data.deals.map((d: any) => ({
+            deal_id: d.deal_id || String(Math.random()),
+            deal_name: humanizeId(d.deal_name || d.company || "Deal", "deal"),
+            company: humanizeId(d.company || d.deal_name || "Company", "deal"),
+            segment: d.segment || "Enterprise",
+            arr: d.arr ?? 0,
+            mrr: (d.arr ?? 0) / 12,
+            priority_score: d.priority_score ?? 50,
+            win_probability: d.win_probability != null
+              ? (d.win_probability > 1 ? d.win_probability / 100 : d.win_probability)
+              : (d.priority_score ?? 50) / 100,
+            top_signal_type: d.top_signal_type || "GENERIC",
+            top_signal_description: d.top_signal || d.top_signal_description || "",
+            recommended_action: d.recommended_action || "",
+            sales_rep: humanizeId(d.rep || d.sales_rep || "Unknown Rep", "rep"),
+            sales_cycle_days: d.days_in_pipeline || d.sales_cycle_days || 30,
+            discount_percentage: d.discount_pct || d.discount_percentage || 0,
+            margin_rate: d.margin_rate || (1 - (d.discount_pct ?? 0)),
+            executive_sponsor_attached: d.executive_sponsor_attached ?? false,
+            industry: d.industry || "Technology",
+            product: d.product || "Predicto Enterprise",
+            stage: d.stage || "Proposal",
+            close_date: d.close_date || "",
+            win_loss_status: d.win_loss_status || "Open",
+          }));
+          setDeals(mappedDeals);
 
-        const total = deals.reduce((s: number, d: any) => s + (d.arr ?? 0), 0);
+          const total = mappedDeals.reduce((s: number, d: any) => s + (d.arr ?? 0), 0);
 
-        const weighted = deals.reduce((s: number, d: any) => {
-          const p = d.win_probability != null
-            ? (d.win_probability > 1 ? d.win_probability / 100 : d.win_probability)
-            : (d.priority_score ?? 50) / 100;
-          return s + (d.arr ?? 0) * p;
-        }, 0);
+          const weighted = mappedDeals.reduce((s: number, d: any) => {
+            const p = d.win_probability;
+            return s + (d.arr ?? 0) * p;
+          }, 0);
 
-        const avgProb = deals.reduce((s: number, d: any) => {
-          const p = d.win_probability != null
-            ? (d.win_probability > 1 ? d.win_probability : d.win_probability * 100)
-            : (d.priority_score ?? 50);
-          return s + p;
-        }, 0) / deals.length;
+          const avgProb = mappedDeals.reduce((s: number, d: any) => {
+            return s + d.win_probability * 100;
+          }, 0) / mappedDeals.length;
 
-        const riskCount = deals.filter((d: any) =>
-          d.top_signal_type === "DISCOUNT_CLIFF" ||
-          d.top_signal_type === "MARGIN_PRESSURE"
-        ).length;
+          const riskCount = mappedDeals.filter((d: any) =>
+            d.top_signal_type === "DISCOUNT_CLIFF" ||
+            d.top_signal_type === "MARGIN_PRESSURE"
+          ).length;
 
-        setLiveTotalArr(total);
-        setLiveWeightedArr(weighted);
-        setLiveAvgWinProb(avgProb);
-        setLiveDiscountRisk(riskCount);
+          setLiveTotalArr(total);
+          setLiveWeightedArr(weighted);
+          setLiveAvgWinProb(avgProb);
+          setLiveDiscountRisk(riskCount);
+        } else {
+          setDeals([]);
+          setLiveTotalArr(null);
+          setLiveWeightedArr(null);
+          setLiveAvgWinProb(null);
+          setLiveDiscountRisk(null);
+        }
       })
-      .catch(() => {});
+      .catch((err) => {
+        console.error("Pipeline deals fetch failed:", err);
+        setHasRealData(false);
+        setDeals([]);
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
   }, []);
 
   const LIVE_DEALS: DealRecord[] = useMemo(() => {
-    return MOCK_DEALS.map((d: any) => ({
-      ...d,
-      deal_name: humanizeId(d.deal_name, "deal"),
-      company: humanizeId(d.deal_name, "deal"),
-      sales_rep: humanizeId(d.sales_rep, "rep"),
-    }));
-  }, []);
+    return deals;
+  }, [deals]);
 
   const LIVE_REPS: RepRecord[] = useMemo(() => {
-    return MOCK_REPS.map((r: any) => ({
-      ...r,
-      rep_name: humanizeId(r.rep_name, "rep"),
-    }));
-  }, []);
+    if (deals.length === 0) return [];
+    const repNames = Array.from(new Set(deals.map(d => d.sales_rep)));
+    return repNames.map((name, i) => {
+      const repDeals = deals.filter(d => d.sales_rep === name);
+      const openCount = repDeals.length;
+      const totalArr = repDeals.reduce((s, d) => s + d.arr, 0);
+      const avgDiscount = repDeals.reduce((s, d) => s + d.discount_percentage, 0) / (openCount || 1) * 100;
+      const winRate = repDeals.reduce((s, d) => s + d.win_probability, 0) / (openCount || 1) * 100;
+      
+      return {
+        rep_id: `REP-00${i+1}`,
+        rep_name: name,
+        win_rate: Math.round(winRate),
+        avg_discount: Math.round(avgDiscount),
+        deals_open: openCount,
+        arr_pipeline: totalArr,
+        top_tactic: "Value-based discovery",
+        scatter_points: repDeals.map(d => ({
+          x: Math.round(d.discount_percentage * 100),
+          y: Math.round(d.win_probability * 100),
+          z: Math.round(d.arr / 1000),
+          deal: d.deal_name
+        }))
+      };
+    });
+  }, [deals]);
 
 
 
@@ -1219,7 +1280,79 @@ export const PipelineView: React.FC = () => {
     setScorerQuantity(undefined);
   };
 
-  /* ── Render ─────────────────────────────────────────────────────────────────*/
+  if (!isLoading && hasRealData === false) {
+    return (
+      <div
+        className="animate-fade-in"
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          minHeight: "70vh",
+          padding: "var(--spacing-xl)",
+          textAlign: "center",
+          maxWidth: 600,
+          margin: "0 auto",
+        }}
+      >
+        <div
+          style={{
+            width: 80,
+            height: 80,
+            borderRadius: "50%",
+            background: "linear-gradient(135deg, rgba(94,106,210,0.15) 0%, rgba(94,106,210,0.02) 100%)",
+            border: "1px solid rgba(94,106,210,0.25)",
+            boxShadow: "0 0 40px rgba(94, 106, 210, 0.15)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            marginBottom: 24,
+          }}
+        >
+          <Target size={32} color="var(--p-primary-hover)" />
+        </div>
+        <h2
+          style={{
+            fontSize: 22,
+            fontWeight: 600,
+            color: "var(--p-ink)",
+            marginBottom: 12,
+            fontFamily: "var(--font-display)",
+            letterSpacing: "-0.5px",
+          }}
+        >
+          {t("common.emptyState.title")}
+        </h2>
+        <p
+          style={{
+            fontSize: 14,
+            color: "var(--p-ink-tertiary)",
+            lineHeight: 1.6,
+            marginBottom: 32,
+            fontFamily: "var(--font-body)",
+          }}
+        >
+          {t("common.emptyState.description")}
+        </p>
+        <button
+          className="btn btn-primary"
+          onClick={() => navigate("/data-workspace")}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 8,
+            padding: "10px 24px",
+            fontSize: 14,
+          }}
+        >
+          {t("common.emptyState.action")}
+          <ArrowRight size={16} style={{ transform: i18n.dir() === "rtl" ? "rotate(180deg)" : "none" }} />
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div
       className="animate-fade-in"

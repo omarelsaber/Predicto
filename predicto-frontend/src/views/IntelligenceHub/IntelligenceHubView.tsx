@@ -419,7 +419,7 @@ const CustomTooltip = ({ payload, active, label }: any) => {
 export const IntelligenceHubView: React.FC = () => {
   /** FIX 1 — Add navigate hook for react-router */
   const navigate = useNavigate();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   const KPI_KEY_MAP: Record<string, string> = {
     "Total ARR": "hub.totalArr",
@@ -474,6 +474,7 @@ export const IntelligenceHubView: React.FC = () => {
   const [zoneD_expanded, setZoneD_expanded] = useState(true);  // start expanded so actions are immediately visible
   const [isRefreshing,   setIsRefreshing]   = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [hasRealData, setHasRealData] = useState<boolean | null>(null);
 
   const [kpiData, setKpiData] = useState<any[]>([]);
   const [forecastData, setForecastData] = useState<any[]>([]);
@@ -520,7 +521,7 @@ export const IntelligenceHubView: React.FC = () => {
 
       // Switch to mock mode ONLY when the server is completely offline or has no loaded tables.
       // A valid health score OR any loaded tables means real data is present.
-      const hasRealData =
+      const realDataAvailable =
         hubRes !== null &&
         hubRes.data_availability !== "OFFLINE" &&
         (
@@ -529,19 +530,15 @@ export const IntelligenceHubView: React.FC = () => {
           (Array.isArray(hubRes.loaded_tables) && hubRes.loaded_tables.length > 0)
         );
 
-      if (!hasRealData) {
-        // ONLY trigger fallback if there is absolutely no active ingestion cache on the server
-        setKpiData(FALLBACK_KPIS.map(k => ({ ...k, label: translateKpiLabel(k.label) })));
-        setForecastData(FALLBACK_FORECAST);
-        setScatterSeries(FALLBACK_SCATTER);
-        setScatterColors(FALLBACK_SCATTER_COLORS);
-        setActionQueue(FALLBACK_ACTIONS.map(a => ({
-          ...a,
-          title: translateActionTitle(a.title),
-          ctaLabel: translateCtaLabel(a.ctaLabel || "Action")
-        })));
-        setActionQueueSummary({ critical: 1, high: 1, medium: 0, totalArr: 205000 });
-        setActiveModel("Mock Mode");
+      setHasRealData(realDataAvailable);
+
+      if (!realDataAvailable) {
+        setKpiData([]);
+        setForecastData([]);
+        setScatterSeries([]);
+        setScatterColors([]);
+        setActionQueue([]);
+        setActionQueueSummary({ critical: 0, high: 0, medium: 0, totalArr: 0 });
         setIsLoading(false);
         return;
       }
@@ -908,6 +905,79 @@ export const IntelligenceHubView: React.FC = () => {
     await fetchData();
     setIsRefreshing(false);
   };
+
+  if (!isLoading && hasRealData === false) {
+    return (
+      <div
+        className="animate-fade-in"
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          minHeight: "70vh",
+          padding: "var(--spacing-xl)",
+          textAlign: "center",
+          maxWidth: 600,
+          margin: "0 auto",
+        }}
+      >
+        <div
+          style={{
+            width: 80,
+            height: 80,
+            borderRadius: "50%",
+            background: "linear-gradient(135deg, rgba(94,106,210,0.15) 0%, rgba(94,106,210,0.02) 100%)",
+            border: "1px solid rgba(94,106,210,0.25)",
+            boxShadow: "0 0 40px rgba(94, 106, 210, 0.15)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            marginBottom: 24,
+          }}
+        >
+          <Users size={32} color="var(--p-primary-hover)" />
+        </div>
+        <h2
+          style={{
+            fontSize: 22,
+            fontWeight: 600,
+            color: "var(--p-ink)",
+            marginBottom: 12,
+            fontFamily: "var(--font-display)",
+            letterSpacing: "-0.5px",
+          }}
+        >
+          {t("common.emptyState.title")}
+        </h2>
+        <p
+          style={{
+            fontSize: 14,
+            color: "var(--p-ink-tertiary)",
+            lineHeight: 1.6,
+            marginBottom: 32,
+            fontFamily: "var(--font-body)",
+          }}
+        >
+          {t("common.emptyState.description")}
+        </p>
+        <button
+          className="btn btn-primary"
+          onClick={() => navigate("/data-workspace")}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 8,
+            padding: "10px 24px",
+            fontSize: 14,
+          }}
+        >
+          {t("common.emptyState.action")}
+          <ArrowRight size={16} style={{ transform: i18n.dir() === "rtl" ? "rotate(180deg)" : "none" }} />
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div

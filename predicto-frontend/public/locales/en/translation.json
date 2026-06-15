@@ -40,7 +40,8 @@
     "disclaimer": "AI responses are for informational purposes only.",
     "suggestChurn": "What's driving churn this quarter?",
     "suggestExpansion": "Top 5 expansion candidates",
-    "suggestForecast": "Forecast accuracy breakdown"
+    "suggestForecast": "Forecast accuracy breakdown",
+    "error": "Sorry, I couldn't process your request. Please try again."
   },
   "onboarding": {
     "welcome": "Welcome to Predicto",
@@ -562,7 +563,12 @@
     "midMarket": "Mid-Market",
     "smb": "SMB",
     "starter": "Starter",
-    "allSegments": "All Segments"
+    "allSegments": "All Segments",
+    "emptyState": {
+      "title": "No Data Ingested Yet",
+      "description": "Please upload your B2B sales transaction table in the Data Workspace to unlock active ML forecasting, persona clustering, and churn risk scoring.",
+      "action": "Go to Data Workspace"
+    }
   },
   "personas": {
     "champions": "Champions",
