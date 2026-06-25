@@ -804,6 +804,7 @@
       "High": "High"
     },
     "executeMove": "Execute Move",
+    "moveApplied": "Applied Successfully",
     "combinedExpectedValue": "Combined Expected Value",
     "playbookSuccess": "Playbook successfully deployed for {{customer}}!",
     "moveSuccess": "Action \"{{move}}\" initiated successfully!",

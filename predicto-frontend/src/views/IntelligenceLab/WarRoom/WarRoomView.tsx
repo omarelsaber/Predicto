@@ -680,9 +680,10 @@ interface MoveCardProps {
   active:  boolean;
   onToggle: (id: string) => void;
   onExecute?: (card: MoveAdvisorCard) => void;
+  executed: boolean;
 }
 
-const MoveCard: React.FC<MoveCardProps> = ({ card, rank, active, onToggle, onExecute }) => {
+const MoveCard: React.FC<MoveCardProps> = ({ card, rank, active, onToggle, onExecute, executed }) => {
   const { t } = useTranslation();
   const ev         = formatArrK(card.expectedValue);
   const effortColor  = getEffortColor(card.effort);
@@ -906,17 +907,33 @@ const MoveCard: React.FC<MoveCardProps> = ({ card, rank, active, onToggle, onExe
           </div>
 
           {/* CTA */}
-          <button
-            onClick={e => {
-              e.stopPropagation();
-              onExecute?.(card);
-            }}
-            className="btn btn-primary"
-            style={{ fontSize: 12, minHeight: 32, height: 32, padding: "5px 14px", alignSelf: "flex-start", display: "flex", alignItems: "center", gap: 5 }}
-          >
-            <ArrowUpRight size={12} />
-            {t("warroom.executeMove")}
-          </button>
+          {executed ? (
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              color: "#4ade80",
+              fontSize: 12,
+              fontWeight: 600,
+              padding: "5px 0",
+              fontFamily: "var(--font-body)",
+            }}>
+              <CheckCircle2 size={14} color="#4ade80" />
+              {t("warroom.moveApplied", { defaultValue: "Applied Successfully" })}
+            </div>
+          ) : (
+            <button
+              onClick={e => {
+                e.stopPropagation();
+                onExecute?.(card);
+              }}
+              className="btn btn-primary"
+              style={{ fontSize: 12, minHeight: 32, height: 32, padding: "5px 14px", alignSelf: "flex-start", display: "flex", alignItems: "center", gap: 5 }}
+            >
+              <ArrowUpRight size={12} />
+              {t("warroom.executeMove")}
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -1232,12 +1249,18 @@ const WarRoomView: React.FC = () => {
   const isOffline = !data || data.data_availability === "OFFLINE";
 
   // ── State ──────────────────────────────────────────────────────────────────
+  const [deals,                setDeals]                = useState<Deal[]>(ALL_DEALS);
+  const [executedMoveIds,      setExecutedMoveIds]      = useState<string[]>([]);
   const [selectedDealId,       setSelectedDealId]       = useState("D-1187");
   const [selectedCompetitorId, setSelectedCompetitorId] = useState("salesforce");
   const [expandedMoveId,       setExpandedMoveId]       = useState<string | null>("ma-sf-1");
   const [tradeOffValue,        setTradeOffValue]         = useState(30);
   const [toast, setToast] = useState<{ message: string; type: "success" | "info" } | null>(null);
   const toastTimerRef = useRef<any>(null);
+
+  React.useEffect(() => {
+    setExecutedMoveIds([]);
+  }, [selectedCompetitorId]);
 
   const showToast = useCallback((message: string, type: "success" | "info" = "success") => {
     if (toastTimerRef.current) {
@@ -1252,13 +1275,13 @@ const WarRoomView: React.FC = () => {
 
   // ── Derived ────────────────────────────────────────────────────────────────
   const currentDeal = useMemo(
-    () => ALL_DEALS.find(d => d.id === selectedDealId),
-    [selectedDealId]
+    () => deals.find(d => d.id === selectedDealId),
+    [deals, selectedDealId]
   );
 
   const competitorDeals = useMemo(
-    () => ALL_DEALS.filter(d => d.competitor === selectedCompetitorId),
-    [selectedCompetitorId]
+    () => deals.filter(d => d.competitor === selectedCompetitorId),
+    [deals, selectedCompetitorId]
   );
 
   const scatterSeries = useMemo(
@@ -1270,6 +1293,7 @@ const WarRoomView: React.FC = () => {
     () => MOVE_ADVISOR_DATA[selectedCompetitorId] ?? [],
     [selectedCompetitorId]
   );
+
 
   const competitorProfile = COMPETITOR_PROFILES[selectedCompetitorId];
 
@@ -1284,9 +1308,41 @@ const WarRoomView: React.FC = () => {
 
   const handleDealChange = useCallback((id: string) => {
     setSelectedDealId(id);
+    setExecutedMoveIds([]);
     const deal = DEAL_OPTIONS.find(d => d.id === id);
     if (deal) setSelectedCompetitorId(deal.competitor);
   }, []);
+
+  const handleExecuteMove = useCallback((card: MoveAdvisorCard) => {
+    if (executedMoveIds.includes(card.id)) return;
+
+    setExecutedMoveIds(prev => [...prev, card.id]);
+    setDeals(prevDeals => prevDeals.map(d => {
+      if (d.id === selectedDealId) {
+        const newWin = Math.min(95, d.winProbability + 8);
+        return { ...d, winProbability: newWin };
+      }
+      return d;
+    }));
+
+    const moveTitle = t(`warroom.moves.${card.id}.title` as any, { defaultValue: card.title });
+    showToast(t("warroom.moveSuccess", { move: moveTitle }));
+  }, [executedMoveIds, selectedDealId, showToast, t]);
+
+  const handleRunPlaybook = useCallback(() => {
+    const customerName = currentDeal?.customer ?? "—";
+    const cards = MOVE_ADVISOR_DATA[selectedCompetitorId] ?? [];
+    
+    setExecutedMoveIds(cards.map(c => c.id));
+    setDeals(prevDeals => prevDeals.map(d => {
+      if (d.id === selectedDealId) {
+        return { ...d, winProbability: 95 };
+      }
+      return d;
+    }));
+
+    showToast(t("warroom.playbookSuccess", { customer: customerName }));
+  }, [currentDeal, selectedCompetitorId, selectedDealId, showToast, t]);
 
   const handleMoveToggle = useCallback((id: string) => {
     setExpandedMoveId(prev => prev === id ? null : id);
@@ -1458,10 +1514,7 @@ const WarRoomView: React.FC = () => {
               width={220}
             />
              <button
-              onClick={() => {
-                const customerName = currentDeal?.customer ?? "—";
-                showToast(t("warroom.playbookSuccess", { customer: customerName }));
-              }}
+              onClick={handleRunPlaybook}
               className="btn btn-primary"
               style={{ fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}
             >
@@ -1708,10 +1761,8 @@ const WarRoomView: React.FC = () => {
                 rank={idx + 1}
                 active={expandedMoveId === card.id}
                 onToggle={handleMoveToggle}
-                onExecute={(card) => {
-                  const moveTitle = t(`warroom.moves.${card.id}.title` as any, { defaultValue: card.title });
-                  showToast(t("warroom.moveSuccess", { move: moveTitle }));
-                }}
+                onExecute={handleExecuteMove}
+                executed={executedMoveIds.includes(card.id)}
               />
             ))}
           </div>

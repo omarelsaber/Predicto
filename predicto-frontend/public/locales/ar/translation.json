@@ -804,6 +804,7 @@
       "High": "مرتفع"
     },
     "executeMove": "تنفيذ التحرك",
+    "moveApplied": "تم تطبيق التحرك بنجاح",
     "combinedExpectedValue": "القيمة المتوقعة الإجمالية",
     "playbookSuccess": "تم تشغيل خطة العمل بنجاح لـ {{customer}}!",
     "moveSuccess": "تم بدء تنفيذ التحرك \"{{move}}\" بنجاح!",

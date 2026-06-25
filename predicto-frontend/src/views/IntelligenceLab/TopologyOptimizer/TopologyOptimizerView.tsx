@@ -29,7 +29,7 @@
  *                     .skeleton, .status-pill, .surface-1)
  */
 
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { useTopologyOptimizerMutation, useWarRoomQuery } from "@/hooks/useGodTierQueries";
@@ -591,7 +591,8 @@ const DeadlineBadge: React.FC<{ days: number }> = ({ days }) => {
 
 const InterventionCell: React.FC<{ type: InterventionIcon; label: string }> = ({ type, label }) => {
   const { t } = useTranslation();
-  const { Icon, color, bg } = INTERVENTION_CONFIG[type];
+  const config = INTERVENTION_CONFIG[type] || INTERVENTION_CONFIG["rep"];
+  const { Icon, color, bg } = config;
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
       <div style={{
@@ -663,22 +664,58 @@ export const TopologyOptimizerView: React.FC = () => {
   const [optimizerData, setOptimizerData] = useState<any>(null);
   const topologyMutation = useTopologyOptimizerMutation();
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const rowsPerPage = 20;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [optimizerData]);
+
   const activeSchedule = useMemo(() => {
     if (!optimizerData) return MASTER_SCHEDULE;
-    return optimizerData.master_schedule.map((row: any) => ({
-      rank: row.priority_rank,
-      customerId: row.customer_id || "unknown",
-      customerName: row.customer,
-      segment: row.segment,
-      arr: row.arr,
-      churnProb: row.projected_churn_reduction,
-      interventionType: row.intervention_type === "REP_CALL" ? "REP_HOURS" : row.intervention_type === "CSM_TOUCH" ? "CSM" : row.intervention_type === "MARKETING_CAMPAIGN" ? "CAMPAIGN" : "NO_ACTION",
-      interventionLabel: row.intervention_type === "REP_CALL" ? "Outbound Call" : row.intervention_type === "CSM_TOUCH" ? "Strategy Session" : row.intervention_type === "MARKETING_CAMPAIGN" ? "Promo Email" : "None",
-      arrRetained: row.projected_arr_retained,
-      roiScore: row.roi_score,
-      deadlineDays: row.action_deadline_days
-    }));
+    return optimizerData.master_schedule.map((row: any) => {
+      const type = row.intervention_type;
+      let mappedType: InterventionIcon = "rep";
+      let label = "None";
+      if (type === "REP_HOURS") {
+        mappedType = "rep";
+        label = "Outbound Call";
+      } else if (type === "CSM_INTERVENTION") {
+        mappedType = "csm";
+        label = "Strategy Session";
+      } else if (type === "CAMPAIGN_SPEND") {
+        mappedType = "campaign";
+        label = "Promo Email";
+      } else if (type === "DISCOUNT_OFFER") {
+        mappedType = "discount";
+        label = "Discount Offer";
+      } else if (type === "EXECUTIVE_TOUCHPOINT") {
+        mappedType = "exec";
+        label = "Executive Touchpoint";
+      }
+
+      return {
+        rank: row.priority_rank,
+        customerId: row.customer_id || "unknown",
+        customerName: row.customer_name || row.customer_id || "Unknown",
+        segment: row.segment,
+        arr: row.arr,
+        churnProb: row.projected_churn_reduction,
+        interventionType: mappedType,
+        interventionLabel: label,
+        arrRetained: row.projected_arr_retained,
+        roiScore: row.roi_score,
+        deadlineDays: row.action_deadline_days
+      };
+    });
   }, [optimizerData]);
+
+  const paginatedSchedule = useMemo(() => {
+    const startIndex = (currentPage - 1) * rowsPerPage;
+    return activeSchedule.slice(startIndex, startIndex + rowsPerPage);
+  }, [activeSchedule, currentPage, rowsPerPage]);
+
+  const totalPages = Math.max(1, Math.ceil(activeSchedule.length / rowsPerPage));
 
 
   /* ── Derived objective value — linear mock of what the MILP returns ─────── */
@@ -776,7 +813,8 @@ export const TopologyOptimizerView: React.FC = () => {
       max_csm_interventions: csmTouches,
       max_campaign_spend: campaignK * 1000,
       planning_period_days: 30,
-      churn_weight: churnWeight
+      churn_weight: churnWeight,
+      top_n_customers: 200
     }, {
       onSuccess: (data) => {
         setOptimizerData(data);
@@ -1290,12 +1328,16 @@ export const TopologyOptimizerView: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {activeSchedule.map((row, idx) => {
-                      const isLast = idx === activeSchedule.length - 1;
-                      const seg = SEGMENT_STYLES[row.segment];
+                    {paginatedSchedule.map((row, idx) => {
+                      const isLast = idx === paginatedSchedule.length - 1;
+                      const seg = SEGMENT_STYLES[row.segment] || {
+                        bg:     "rgba(255, 255, 255, 0.05)",
+                        text:   "var(--p-ink-tertiary)",
+                        border: "var(--p-hairline)",
+                      };
                       return (
                         <tr
-                          key={row.customerId}
+                          key={`${row.customerId}-${idx}`}
                           style={{
                             background: idx % 2 === 0 ? "transparent" : "rgba(255,255,255,0.01)",
                             transition: "background 100ms ease",
@@ -1399,23 +1441,105 @@ export const TopologyOptimizerView: React.FC = () => {
                 </table>
               </div>
 
-              {/* Table footer */}
+              {/* Table footer with pagination */}
               <div style={{
-                padding:    "10px 16px",
+                padding:    "12px 16px",
                 borderTop:  "1px solid var(--p-hairline)",
                 display:    "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
+                flexWrap: "wrap",
+                gap: 12,
               }}>
-                <span style={{ fontSize: 11, color: "var(--p-ink-tertiary)", fontFamily: "var(--font-body)" }}>
-                  {t("topology.showingAllCustomers", { count: activeSchedule.length })}
-                </span>
-                <span style={{
-                  fontFamily: "var(--font-mono)", fontSize: 11,
-                  color: "var(--p-ink-tertiary)",
-                }}>
-                  {t("topology.totalArrAtRisk", { value: formatCurrency(activeSchedule.reduce((s, r) => s + r.arr, 0)) })}
-                </span>
+                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                  <span style={{ fontSize: 11, color: "var(--p-ink-tertiary)", fontFamily: "var(--font-body)" }}>
+                    {i18n.language === "ar"
+                      ? `عرض ${(currentPage - 1) * rowsPerPage + 1} - ${Math.min(currentPage * rowsPerPage, activeSchedule.length)} من إجمالي ${activeSchedule.length} عميل`
+                      : `Showing ${(currentPage - 1) * rowsPerPage + 1} - ${Math.min(currentPage * rowsPerPage, activeSchedule.length)} of ${activeSchedule.length} customers`
+                    }
+                  </span>
+                  <span style={{
+                    fontFamily: "var(--font-mono)", fontSize: 10,
+                    color: "var(--p-ink-quaternary)",
+                  }}>
+                    {t("topology.totalArrAtRisk", { value: formatCurrency(activeSchedule.reduce((s, r) => s + r.arr, 0)) })}
+                  </span>
+                </div>
+
+                {totalPages > 1 && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      disabled={currentPage === 1}
+                      style={{
+                        padding: "4px 10px",
+                        fontSize: 11,
+                        fontWeight: 500,
+                        borderRadius: "var(--radius-sm)",
+                        border: "1px solid var(--p-hairline)",
+                        background: currentPage === 1 ? "transparent" : "rgba(255, 255, 255, 0.03)",
+                        color: currentPage === 1 ? "var(--p-ink-quaternary)" : "var(--p-ink-muted)",
+                        cursor: currentPage === 1 ? "not-allowed" : "pointer",
+                        transition: "all 120ms ease",
+                        fontFamily: "var(--font-body)",
+                      }}
+                      onMouseEnter={(e) => {
+                        if (currentPage !== 1) {
+                          e.currentTarget.style.background = "rgba(255, 255, 255, 0.08)";
+                          e.currentTarget.style.borderColor = "rgba(94, 106, 210, 0.4)";
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = currentPage === 1 ? "transparent" : "rgba(255, 255, 255, 0.03)";
+                        e.currentTarget.style.borderColor = "var(--p-hairline)";
+                      }}
+                    >
+                      {i18n.language === "ar" ? "السابق" : "Prev"}
+                    </button>
+                    
+                    <span style={{
+                      fontSize: 11,
+                      color: "var(--p-ink-muted)",
+                      minWidth: 44,
+                      textAlign: "center",
+                      fontFamily: "var(--font-body)",
+                    }}>
+                      {i18n.language === "ar"
+                        ? `صفحة ${currentPage} / ${totalPages}`
+                        : `Page ${currentPage} of ${totalPages}`
+                      }
+                    </span>
+
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                      disabled={currentPage === totalPages}
+                      style={{
+                        padding: "4px 10px",
+                        fontSize: 11,
+                        fontWeight: 500,
+                        borderRadius: "var(--radius-sm)",
+                        border: "1px solid var(--p-hairline)",
+                        background: currentPage === totalPages ? "transparent" : "rgba(255, 255, 255, 0.03)",
+                        color: currentPage === totalPages ? "var(--p-ink-quaternary)" : "var(--p-ink-muted)",
+                        cursor: currentPage === totalPages ? "not-allowed" : "pointer",
+                        transition: "all 120ms ease",
+                        fontFamily: "var(--font-body)",
+                      }}
+                      onMouseEnter={(e) => {
+                        if (currentPage !== totalPages) {
+                          e.currentTarget.style.background = "rgba(255, 255, 255, 0.08)";
+                          e.currentTarget.style.borderColor = "rgba(94, 106, 210, 0.4)";
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = currentPage === totalPages ? "transparent" : "rgba(255, 255, 255, 0.03)";
+                        e.currentTarget.style.borderColor = "var(--p-hairline)";
+                      }}
+                    >
+                      {i18n.language === "ar" ? "التالي" : "Next"}
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </section>
