@@ -51,6 +51,8 @@ import {
 import { useShell } from "@/components/shell/AppShell";
 import { useTranslation } from "react-i18next";
 
+const API_URL = import.meta.env.VITE_API_URL || "";
+
 /* ==========================================================================
    Types
    ========================================================================== */
@@ -478,7 +480,7 @@ const ChurnWarningsTab: React.FC<ChurnWarningsTabProps> = ({ onIntervene }) => {
 
   useEffect(() => {
     setIsLoadingChurn(true);
-    fetch("http://localhost:8001/api/v2/churn/competitive?limit=50")
+    fetch(`${API_URL}/api/v2/churn/competitive?limit=50`)
       .then(r => r.json())
       .then((data) => {
         if (!data?.customers || data.customers.length === 0) return;
@@ -883,7 +885,7 @@ const ExpansionCandidatesTab: React.FC<{
   const [totalOpportunityLive, setTotalOpportunityLive] = useState<number | null>(null);
 
   useEffect(() => {
-    fetch("http://localhost:8001/api/v2/expansion/candidates")
+    fetch(`${API_URL}/api/v2/expansion/candidates`)
       .then(r => r.json())
       .then((data) => {
         if (!data?.candidates || data.candidates.length === 0) return;
@@ -1733,8 +1735,7 @@ const RiskRetentionView: React.FC = () => {
 
   useEffect(() => {
     setIsLoading(true);
-    const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8001";
-    
+
     Promise.all([
       fetch(`${API_URL}/api/v2/churn/competitive?limit=1`).then(r => r.json()).catch(() => null),
       fetch(`${API_URL}/api/v2/expansion/candidates`).then(r => r.json()).catch(() => null)
@@ -1922,9 +1923,9 @@ const RiskRetentionView: React.FC = () => {
               style={{ fontSize: 13 }}
               onClick={async () => {
                 try {
-                  const res = await fetch("http://localhost:8001/api/v1/report");
+                  const res = await fetch(`${API_URL}/api/v1/report`);
                   if (res.ok) {
-                    window.open("http://localhost:8001/api/v1/report", "_blank");
+                    window.open(`${API_URL}/api/v1/report`, "_blank");
                   } else {
                     setPlaybookModal(
                       t("risk.exportReportUnavailable")

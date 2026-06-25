@@ -226,8 +226,11 @@
     "signals": {
       "DISCOUNT_CLIFF": "Discount Cliff",
       "MARGIN_PRESSURE": "Margin Pressure",
+      "SEGMENT_MISMATCH": "Segment Mismatch",
       "LONG_CYCLE": "Long Cycle",
       "HIGH_PRIORITY": "High Priority",
+      "HIGH_ARR": "High ARR",
+      "CHURN_RISK": "Churn Risk",
       "EXPANSION_READY": "Expansion Ready",
       "EXEC_SPONSOR_MISSING": "No Exec Sponsor",
       "RENEWAL_RISK": "Renewal Risk",
@@ -802,6 +805,8 @@
     },
     "executeMove": "Execute Move",
     "combinedExpectedValue": "Combined Expected Value",
+    "playbookSuccess": "Playbook successfully deployed for {{customer}}!",
+    "moveSuccess": "Action \"{{move}}\" initiated successfully!",
     "simulator": {
       "title": "Margin vs Win Rate Trade-Off Simulator",
       "subtitle": "Adjust to simulate impact of additional discount. Pareto frontier gap shown live.",

@@ -3,7 +3,7 @@ app/api/v1/data_router.py
 ─────────────────────────────────────────────────────────────────────────────
 All non-streaming data endpoints:
 
-  POST /api/v1/ingest          — Accept CSV upload, re-ingest, re-train all models
+  POST /api/v1/ingest          — Accept CSV/ZIP upload, re-ingest, re-train all models
   GET  /api/v1/forecast        — Per-segment revenue forecasts
   GET  /api/v1/personas        — K-Means economic persona profiles
   POST /api/v1/deals/score     — Single-deal margin scorer
@@ -183,6 +183,8 @@ async def ingest_upload(
         ) from exc
 
     # 2. Re-ingest (runs the strict 4-step validation layer)
+    predicto_cache.clear()
+    logger.info("V1 cache cleared prior to re-ingest")
     total_start = time.perf_counter()
     try:
         result = ingest(upload_path)
@@ -494,7 +496,7 @@ async def generate_report(type: str = "exec-intelligence", lang: str = "en") -> 
     """
     from app.core.cache import predicto_cache_v2
     from app.services.forecast_service import get_forecast_inputs
-    from app.services.segmentation_service import get_segmentation_input
+    from app.services.persona_service import get_segmentation_input
 
     v1_ready = predicto_cache.models_ready()
     v2_ready = predicto_cache_v2.is_ready and predicto_cache_v2.sales_df is not None
@@ -1027,7 +1029,8 @@ async def generate_report(type: str = "exec-intelligence", lang: str = "en") -> 
             
             deal_rows = ""
             for d in priority_deals[:20]:
-                win_pct = d.win_probability * 100 if d.win_probability < 1.0 else d.win_probability
+                win_prob = d.win_probability if d.win_probability is not None else (d.priority_score / 100.0 if d.priority_score is not None else 0.5)
+                win_pct = win_prob * 100 if win_prob < 1.0 else win_prob
                 p_score = d.priority_score
                 p_color = "#10b981" if p_score >= 80 else ("#f59e0b" if p_score >= 60 else "#ef4444")
                 bg_color = f"{p_color}15"
@@ -1053,7 +1056,8 @@ async def generate_report(type: str = "exec-intelligence", lang: str = "en") -> 
                     rep_stats[r] = {"arr": 0.0, "count": 0, "win_prob": 0.0}
                 rep_stats[r]["arr"] += d.arr
                 rep_stats[r]["count"] += 1
-                rep_stats[r]["win_prob"] += d.win_probability
+                win_prob = d.win_probability if d.win_probability is not None else (d.priority_score / 100.0 if d.priority_score is not None else 0.5)
+                rep_stats[r]["win_prob"] += win_prob
                 
             rep_rows = ""
             for r, stats in rep_stats.items():
@@ -1109,7 +1113,8 @@ async def generate_report(type: str = "exec-intelligence", lang: str = "en") -> 
             for d in priority_deals:
                 desc = d.top_signal.lower()
                 if "competitor" in desc or "clari" in desc or "erod" in desc or d.top_signal_type in ("MARGIN_PRESSURE", "DISCOUNT_CLIFF"):
-                    win_pct = d.win_probability * 100 if d.win_probability < 1.0 else d.win_probability
+                    win_prob = d.win_probability if d.win_probability is not None else (d.priority_score / 100.0 if d.priority_score is not None else 0.5)
+                    win_pct = win_prob * 100 if win_prob < 1.0 else win_prob
                     comp_rows += f"""
                     <tr>
                         <td style="font-weight:600;color:#0f172a;text-align:{text_align};">{d.deal_name}</td>

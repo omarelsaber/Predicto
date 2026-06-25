@@ -19,7 +19,9 @@
 
 from __future__ import annotations
 
+import os
 import math
+import tempfile
 import logging
 import warnings
 from typing import Any
@@ -80,7 +82,7 @@ BATCH_SIZE   = 64
 NUM_EPOCHS   = 100
 LR           = 1e-3
 PATIENCE     = 15
-CHECKPOINT   = "hybrid_best.pt"   # temp file written during training
+CHECKPOINT   = os.path.join(tempfile.gettempdir(), "hybrid_best.pt")   # temp file written during training
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -755,12 +757,24 @@ class ColdStartRouter:
         tr_dl = DataLoader(tr_ds, batch_size=BATCH_SIZE, shuffle=True)
         vl_dl = DataLoader(vl_ds, batch_size=BATCH_SIZE, shuffle=False)
 
-        _train_hybrid(self.full_model, tr_dl, vl_dl)
+        # Use a unique temp file to avoid Windows mapping/lock conflicts (e.g. on OneDrive)
+        fd, temp_checkpoint_path = tempfile.mkstemp(suffix=".pt", prefix="hybrid_best_")
+        os.close(fd)
 
-        # Reload best checkpoint
-        self.full_model.load_state_dict(
-            torch.load(CHECKPOINT, map_location=DEVICE)
-        )
+        try:
+            _train_hybrid(self.full_model, tr_dl, vl_dl, checkpoint=temp_checkpoint_path)
+
+            # Reload best checkpoint
+            self.full_model.load_state_dict(
+                torch.load(temp_checkpoint_path, map_location=DEVICE)
+            )
+        finally:
+            if os.path.exists(temp_checkpoint_path):
+                try:
+                    os.remove(temp_checkpoint_path)
+                except Exception as e:
+                    log.warning("Failed to remove temporary checkpoint file %s: %s", temp_checkpoint_path, e)
+
         log.info("  Full Hybrid Fusion model fitted and best weights restored.")
 
 

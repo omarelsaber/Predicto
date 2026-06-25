@@ -40,7 +40,7 @@ from app.api.v2.churn import router as churn_router
 from app.api.v2.expansion import router as expansion_router
 from app.api.v2.analyst import router as analyst_router
 from app.api.v2.phase5_router import router as phase5_router
-# from app.api.v2.godtier import router as godtier_router
+from app.api.v2.godtier import router as godtier_router
 from app.api.v2.godtier2 import router as godtier2_router
 from app.api.v2.godtier_v3_router1 import router as godtier_v3_router1
 # Logging
@@ -121,7 +121,7 @@ def create_app() -> FastAPI:
             content=ErrorResponse(
                 error="internal_server_error",
                 message="An unexpected error occurred.",
-                detail=str(exc),
+                detail=str(exc) if settings.debug else None,
             ).model_dump(),
         )
 
@@ -167,7 +167,7 @@ def create_app() -> FastAPI:
     app.include_router(expansion_router)
     app.include_router(analyst_router)
     app.include_router(phase5_router)
-    # app.include_router(godtier_router)
+    app.include_router(godtier_router, prefix="/api")
     app.include_router(godtier2_router)
     app.include_router(godtier_v3_router1)
 

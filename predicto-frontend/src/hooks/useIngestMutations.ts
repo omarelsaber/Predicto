@@ -29,7 +29,7 @@ import type { V1IngestResponse } from "@/types/health";
 /**
  * useIngestZIPMutation
  *
- * Uploads a ZIP file to POST /api/v2/ingest.
+ * Uploads a ZIP file to POST /api/v2/data/ingest.
  * On success: hydrates the global store AND invalidates all ML query caches
  * so every active view receives fresh data in the background.
  *

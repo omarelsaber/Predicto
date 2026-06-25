@@ -251,9 +251,11 @@ def calculate_war_room() -> DealWarRoomResponse:
         for i in range(N_COMP)
     ]
 
-    stage_col = next((c for c in ("stage", "deal_stage", "status") if c in sales_df.columns), None)
+    stage_col = next((c for c in ("stage", "deal_stage", "status", "win_loss_status") if c in sales_df.columns), None)
     if stage_col:
-        open_mask = ~sales_df[stage_col].astype(str).str.lower().isin(["closed won", "closed lost", "won", "lost", "closed"])
+        # Clean status by converting to lowercase and replacing underscores with spaces
+        cleaned_status = sales_df[stage_col].astype(str).str.lower().str.replace("_", " ").str.strip()
+        open_mask = ~cleaned_status.isin(["closed won", "closed lost", "won", "lost", "closed"])
         active_df = sales_df[open_mask].copy()
     else:
         active_df = sales_df.copy()
@@ -273,6 +275,12 @@ def calculate_war_room() -> DealWarRoomResponse:
     arr_col     = next((c for c in ("arr", "amount", "deal_value") if c in active_df.columns), None)
     prob_col    = next((c for c in ("win_probability", "probability") if c in active_df.columns), None)
     disc_col    = next((c for c in ("discount_pct", "discount", "discount_rate") if c in active_df.columns), None)
+
+    # Safety limit: sort by ARR descending and take top 50 to avoid blocking Uvicorn's event loop with heavy CFR loops
+    if len(active_df) > 50:
+        sort_by = arr_col if arr_col and arr_col in active_df.columns else active_df.columns[0]
+        active_df = active_df.sort_values(sort_by, ascending=False).head(50)
+        warnings.append("Pipeline size exceeds real-time limit. Optimized top 50 active deals by value.")
 
     rng = np.random.default_rng(seed=42)
     recommendations: List[DealWarRoomRecommendation] = []

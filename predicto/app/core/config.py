@@ -7,7 +7,7 @@ No other module should import os.environ directly.
 
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Optional
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -66,6 +66,14 @@ class Settings(BaseSettings):
         description=(
             "If True, ingest default_csv_path and train all ML pillars at server startup. "
             "If False (default), the cache stays empty until the user uploads via POST /ingest."
+        ),
+    )
+
+    startup_zip_path: Optional[Path] = Field(
+        default=None,
+        description=(
+            "Optional ZIP file to auto-ingest via the V2 pipeline on startup when "
+            "load_default_csv_on_startup is True. Override with PREDICTO_STARTUP_ZIP_PATH."
         ),
     )
 

@@ -51,8 +51,11 @@ import {
 type DealSignalType =
   | "DISCOUNT_CLIFF"
   | "MARGIN_PRESSURE"
-  | "LONG_CYCLE"
+  | "SEGMENT_MISMATCH"
   | "HIGH_PRIORITY"
+  | "LONG_CYCLE"
+  | "HIGH_ARR"
+  | "CHURN_RISK"
   | "EXPANSION_READY"
   | "EXEC_SPONSOR_MISSING"
   | "RENEWAL_RISK"
@@ -330,6 +333,10 @@ const SIGNAL_CONFIG: Record<
     label: "MARGIN PRESSURE", bg: "rgba(232,163,10,0.10)", border: "rgba(232,163,10,0.25)",
     color: "#fbbf24", icon: TrendingDown,
   },
+  SEGMENT_MISMATCH: {
+    label: "SEGMENT MISMATCH", bg: "rgba(232,163,10,0.10)", border: "rgba(232,163,10,0.25)",
+    color: "#fbbf24", icon: AlertTriangle,
+  },
   LONG_CYCLE: {
     label: "LONG CYCLE", bg: "rgba(98,102,109,0.12)", border: "rgba(98,102,109,0.25)",
     color: "var(--p-ink-subtle)", icon: Clock,
@@ -337,6 +344,14 @@ const SIGNAL_CONFIG: Record<
   HIGH_PRIORITY: {
     label: "HIGH PRIORITY", bg: "rgba(94,106,210,0.12)", border: "rgba(94,106,210,0.25)",
     color: "var(--p-primary-hover)", icon: Zap,
+  },
+  HIGH_ARR: {
+    label: "HIGH ARR", bg: "rgba(39,166,68,0.10)", border: "rgba(39,166,68,0.25)",
+    color: "#4ade80", icon: TrendingUp,
+  },
+  CHURN_RISK: {
+    label: "CHURN RISK", bg: "rgba(229,72,77,0.10)", border: "rgba(229,72,77,0.25)",
+    color: "#f87171", icon: AlertTriangle,
   },
   EXPANSION_READY: {
     label: "EXPANSION READY", bg: "rgba(39,166,68,0.10)", border: "rgba(39,166,68,0.25)",
@@ -589,7 +604,7 @@ const SummaryPill: React.FC<{
 /* ── Signal badge ──────────────────────────────────────────────────────────── */
 const SignalBadge: React.FC<{ signal: DealSignalType }> = ({ signal }) => {
   const { t } = useTranslation();
-  const cfg = SIGNAL_CONFIG[signal];
+  const cfg = SIGNAL_CONFIG[signal] || SIGNAL_CONFIG["GENERIC"];
   const Icon = cfg.icon;
   return (
     <span
@@ -993,7 +1008,10 @@ const DEAL_NAMES = [
   "LexCorp", "Virtucon", "Oceanic Airlines", "Wonka Ind.", "Tyrell Corp"
 ];
 
-const humanizeId = (id: string, type: "rep" | "deal") => {
+const humanizeId = (id: any, type: "rep" | "deal") => {
+  if (typeof id !== "string") {
+    id = String(id || "");
+  }
   if (!id || (!id.includes("-") && id.length < 15)) return id; 
   const sum = id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
   return type === "rep" ? REP_NAMES[sum % REP_NAMES.length] : DEAL_NAMES[sum % DEAL_NAMES.length];
@@ -1169,7 +1187,7 @@ export const PipelineView: React.FC = () => {
     });
 
     return filtered;
-  }, [segmentFilter, repFilter, signalFilter, sortField, sortDir]);
+  }, [LIVE_DEALS, segmentFilter, repFilter, signalFilter, sortField, sortDir]);
 
   const totalArr = visibleDeals.reduce((sum, d) => sum + (d.arr ?? 0), 0);
 
@@ -1447,9 +1465,12 @@ export const PipelineView: React.FC = () => {
             <option value="all">{t("pipeline.allSignals")}</option>
             <option value="DISCOUNT_CLIFF">{t("pipeline.signals.DISCOUNT_CLIFF")}</option>
             <option value="MARGIN_PRESSURE">{t("pipeline.signals.MARGIN_PRESSURE")}</option>
+            <option value="SEGMENT_MISMATCH">{t("pipeline.signals.SEGMENT_MISMATCH")}</option>
             <option value="HIGH_PRIORITY">{t("pipeline.signals.HIGH_PRIORITY")}</option>
-            <option value="EXPANSION_READY">{t("pipeline.signals.EXPANSION_READY")}</option>
             <option value="LONG_CYCLE">{t("pipeline.signals.LONG_CYCLE")}</option>
+            <option value="HIGH_ARR">{t("pipeline.signals.HIGH_ARR")}</option>
+            <option value="CHURN_RISK">{t("pipeline.signals.CHURN_RISK")}</option>
+            <option value="EXPANSION_READY">{t("pipeline.signals.EXPANSION_READY")}</option>
             <option value="EXEC_SPONSOR_MISSING">{t("pipeline.signals.EXEC_SPONSOR_MISSING")}</option>
             <option value="RENEWAL_RISK">{t("pipeline.signals.RENEWAL_RISK")}</option>
           </NativeSelect>

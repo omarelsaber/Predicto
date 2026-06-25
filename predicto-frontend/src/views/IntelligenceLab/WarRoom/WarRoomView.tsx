@@ -21,7 +21,8 @@
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { useWarRoomQuery } from "@/hooks/useGodTierQueries";
@@ -678,9 +679,10 @@ interface MoveCardProps {
   rank:    number;
   active:  boolean;
   onToggle: (id: string) => void;
+  onExecute?: (card: MoveAdvisorCard) => void;
 }
 
-const MoveCard: React.FC<MoveCardProps> = ({ card, rank, active, onToggle }) => {
+const MoveCard: React.FC<MoveCardProps> = ({ card, rank, active, onToggle, onExecute }) => {
   const { t } = useTranslation();
   const ev         = formatArrK(card.expectedValue);
   const effortColor  = getEffortColor(card.effort);
@@ -905,7 +907,10 @@ const MoveCard: React.FC<MoveCardProps> = ({ card, rank, active, onToggle }) => 
 
           {/* CTA */}
           <button
-            onClick={e => e.stopPropagation()}
+            onClick={e => {
+              e.stopPropagation();
+              onExecute?.(card);
+            }}
             className="btn btn-primary"
             style={{ fontSize: 12, minHeight: 32, height: 32, padding: "5px 14px", alignSelf: "flex-start", display: "flex", alignItems: "center", gap: 5 }}
           >
@@ -1231,6 +1236,19 @@ const WarRoomView: React.FC = () => {
   const [selectedCompetitorId, setSelectedCompetitorId] = useState("salesforce");
   const [expandedMoveId,       setExpandedMoveId]       = useState<string | null>("ma-sf-1");
   const [tradeOffValue,        setTradeOffValue]         = useState(30);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "info" } | null>(null);
+  const toastTimerRef = useRef<any>(null);
+
+  const showToast = useCallback((message: string, type: "success" | "info" = "success") => {
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+    }
+    setToast({ message, type });
+    toastTimerRef.current = setTimeout(() => {
+      setToast(null);
+      toastTimerRef.current = null;
+    }, 4000);
+  }, []);
 
   // ── Derived ────────────────────────────────────────────────────────────────
   const currentDeal = useMemo(
@@ -1439,7 +1457,11 @@ const WarRoomView: React.FC = () => {
               onChange={setSelectedCompetitorId}
               width={220}
             />
-            <button
+             <button
+              onClick={() => {
+                const customerName = currentDeal?.customer ?? "—";
+                showToast(t("warroom.playbookSuccess", { customer: customerName }));
+              }}
               className="btn btn-primary"
               style={{ fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}
             >
@@ -1686,6 +1708,10 @@ const WarRoomView: React.FC = () => {
                 rank={idx + 1}
                 active={expandedMoveId === card.id}
                 onToggle={handleMoveToggle}
+                onExecute={(card) => {
+                  const moveTitle = t(`warroom.moves.${card.id}.title` as any, { defaultValue: card.title });
+                  showToast(t("warroom.moveSuccess", { move: moveTitle }));
+                }}
               />
             ))}
           </div>
@@ -1780,7 +1806,48 @@ const WarRoomView: React.FC = () => {
             width: 100% !important;
           }
         }
+
+        @keyframes slideUp {
+          from {
+            transform: translateY(20px);
+            opacity: 0;
+          }
+          to {
+            transform: translateY(0);
+            opacity: 1;
+          }
+        }
       `}</style>
+
+      {/* Toast Notification */}
+      {toast && createPortal(
+        <div
+          style={{
+            position: "fixed",
+            bottom: "24px",
+            left: i18n.language === "ar" ? "24px" : "auto",
+            right: i18n.language === "ar" ? "auto" : "24px",
+            zIndex: 9999,
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            background: "rgba(20,21,22,0.92)",
+            backdropFilter: "blur(12px)",
+            WebkitBackdropFilter: "blur(12px)",
+            border: "1px solid rgba(74,222,128,0.4)",
+            borderRadius: "var(--radius-lg)",
+            padding: "12px 18px",
+            boxShadow: "0 10px 30px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05)",
+            animation: "slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards",
+          }}
+        >
+          <CheckCircle2 size={16} color="#4ade80" />
+          <span style={{ fontSize: 13, color: "var(--p-ink)", fontWeight: 500 }}>
+            {toast.message}
+          </span>
+        </div>,
+        document.body
+      )}
     </div>
   );
 };

@@ -83,4 +83,4 @@ export interface ResponseMetadata {
     data_availability: FeatureAvailability;
     overall_confidence: ConfidenceLevel;
     warnings: string[];
-}// TODO: Code will be pasted manually
+}

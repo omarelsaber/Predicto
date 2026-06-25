@@ -263,7 +263,6 @@ export default function UploadPage({ onUploadComplete }) {
                   {stages.map((s, i) => {
                     const isActive = s.key === stage;
                     const isComplete = currentStageIndex > i;
-                    const isPending = currentStageIndex < i;
 
                     return (
                       <div

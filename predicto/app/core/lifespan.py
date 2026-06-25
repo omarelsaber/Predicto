@@ -35,19 +35,16 @@ Wiring (in main.py)
 from __future__ import annotations
 
 import logging
+import os
 import time
-from asyncio import to_thread
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import AsyncGenerator
 
 from fastapi import FastAPI
 
-from app.core.cache import predicto_cache
+from app.core.cache import predicto_cache_v2
 from app.core.config import get_settings
-from app.ml.forecasting import train_forecast_models
-from app.ml.margin_engine import train_margin_engine
-from app.ml.segmentation import train_segmentation
-from app.services.ingestion_service import ingest
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +56,17 @@ def _log_pillar(name: str, elapsed: float, extra: str = "") -> None:
     """Emit a consistent one-line startup log per pillar."""
     suffix = f" | {extra}" if extra else ""
     logger.info("  ✓ %-30s  %.2f s%s", name, elapsed, suffix)
+
+
+def _resolve_startup_zip_path() -> Path | None:
+    """Resolve optional V2 startup ZIP from settings or env."""
+    settings = get_settings()
+    if settings.startup_zip_path is not None:
+        return settings.startup_zip_path
+    env_path = os.getenv("PREDICTO_STARTUP_ZIP_PATH", "").strip()
+    if env_path:
+        return Path(env_path)
+    return None
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -105,22 +113,24 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:   # noqa: ARG001
         return
 
     # ─────────────────────────────────────────────────────────────────────
-    # Step 1 — CSV ingestion
+    # Step 1 — V2 ZIP ingestion (optional)
     # ─────────────────────────────────────────────────────────────────────
     t0 = time.perf_counter()
     try:
-        import os
         from app.services.ingestion_service_v2 import ingest_data_files
-        
-        zip_path = r"c:\Users\ASUS\OneDrive\Desktop\data\predicto_v3_data.zip"
-        if os.path.exists(zip_path):
-            logger.info("[1/4] Auto-ingesting V3 zip file: %s", zip_path)
-            with open(zip_path, 'rb') as f:
+
+        zip_path = _resolve_startup_zip_path()
+        if zip_path is not None and zip_path.exists():
+            logger.info("[1/1] Auto-ingesting V2 zip file: %s", zip_path)
+            with open(zip_path, "rb") as f:
                 content = f.read()
-            files_data = [("data.zip", content)]
+            files_data = [(zip_path.name, content)]
             await ingest_data_files(files_data)
         else:
-            logger.info("[1/4] No auto-ingest zip found at %s", zip_path)
+            logger.info(
+                "[1/1] No auto-ingest zip configured or found%s",
+                f" at {zip_path}" if zip_path is not None else "",
+            )
     except Exception as exc:
         logger.critical(
             "STARTUP FAILED at ingestion — %s: %s",
@@ -132,90 +142,22 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:   # noqa: ARG001
             f"Predicto cannot start: CSV ingestion failed — {exc}"
         ) from exc
 
-    raw_df = predicto_cache.get_raw_data()
-    monthly_df = predicto_cache.get_monthly_data()
-    raw_df_len = len(raw_df) if raw_df is not None else 0
-    monthly_df_len = len(monthly_df) if monthly_df is not None else 0
+    tables_loaded = list(predicto_cache_v2.tables_loaded or [])
+    health_score = predicto_cache_v2.health_score
     _log_pillar(
-        "Ingestion",
+        "V2 Ingestion",
         time.perf_counter() - t0,
-        f"raw_df={raw_df_len:,} rows  monthly_df={monthly_df_len:,} rows",
+        f"tables={tables_loaded}  health_score={health_score}",
     )
 
-    # ─────────────────────────────────────────────────────────────────────
-    # Step 2 — Pillar 1: Fourier + Ridge Forecasting
-    # ─────────────────────────────────────────────────────────────────────
-    # t0 = time.perf_counter()
-    # try:
-    #     logger.info("[2/4] Training Pillar 1 — Fourier+Ridge Forecasting …")
-    #     forecast_models = await to_thread(train_forecast_models)
-    # except Exception as exc:
-    #     logger.critical(
-    #         "STARTUP FAILED at Pillar 1 (Forecasting) — %s: %s",
-    #         type(exc).__name__,
-    #         exc,
-    #         exc_info=True,
-    #     )
-    #     raise RuntimeError(
-    #         f"Predicto cannot start: Forecasting training failed — {exc}"
-    #     ) from exc
-    # _log_pillar("Pillar 1 — Forecasting", time.perf_counter() - t0)
-    pass
-
-    # ─────────────────────────────────────────────────────────────────────
-    # Step 3 — Pillar 2: XGBoost / GBR Margin Engine
-    # ─────────────────────────────────────────────────────────────────────
-    # t0 = time.perf_counter()
-    # try:
-    #     logger.info("[3/4] Training Pillar 2 — Margin Engine …")
-    #     margin_models = await to_thread(train_margin_engine)
-    # except Exception as exc:
-    #     logger.critical(
-    #         "STARTUP FAILED at Pillar 2 (MarginEngine) — %s: %s",
-    #         type(exc).__name__,
-    #         exc,
-    #         exc_info=True,
-    #     )
-    #     raise RuntimeError(
-    #         f"Predicto cannot start: Margin engine training failed — {exc}"
-    #     ) from exc
-    # _log_pillar("Pillar 2 — Margin Engine", time.perf_counter() - t0)
-    pass
-
-    # ─────────────────────────────────────────────────────────────────────
-    # Step 4 — Pillar 3: K-Means Segmentation
-    # ─────────────────────────────────────────────────────────────────────
-    # t0 = time.perf_counter()
-    # try:
-    #     logger.info("[4/4] Training Pillar 3 — K-Means Segmentation …")
-    #     segmentation_result = await to_thread(train_segmentation)
-    # except Exception as exc:
-    #     logger.critical(
-    #         "STARTUP FAILED at Pillar 3 (Segmentation) — %s: %s",
-    #         type(exc).__name__,
-    #         exc,
-    #         exc_info=True,
-    #     )
-    #     raise RuntimeError(
-    #         f"Predicto cannot start: Segmentation training failed — {exc}"
-    #     ) from exc
-    # _log_pillar("Pillar 3 — Segmentation", time.perf_counter() - t0)
-    pass
-
-    # ─────────────────────────────────────────────────────────────────────
-    # Step 5 — Atomic model commit to cache
-    # ─────────────────────────────────────────────────────────────────────
-    # predicto_cache.set_models(
-    #     forecast=forecast_models,
-    #     margin=margin_models,
-    #     segmentation=segmentation_result,
-    # )
-    pass
+    # V1 ML pillar training is intentionally skipped at startup — models train on
+    # POST /api/v1/ingest after the user uploads transaction CSV data.
 
     total_elapsed = time.perf_counter() - total_start
     logger.info("=" * 60)
     logger.info(
-        "Predicto READY — all pillars trained in %.2f s total", total_elapsed
+        "Predicto READY — V2 data ingested in %.2f s (V1 ML pillars deferred)",
+        total_elapsed,
     )
     logger.info("=" * 60)
 

@@ -20,6 +20,7 @@
 
 import React, { useState, useCallback, useRef, useEffect } from "react";
 import { useTranslation } from "react-i18next";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Card,
   Table,
@@ -815,6 +816,7 @@ const DataPreviewTable: React.FC<{ data: any[] }> = ({ data }) => {
 
 const DataWorkspaceView: React.FC = () => {
   const { t } = useTranslation();
+  const queryClient = useQueryClient();
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [activeTab, setActiveTab]       = useState<number>(0);
 
@@ -968,6 +970,9 @@ const DataWorkspaceView: React.FC = () => {
       } catch {
         addLog("muted", "V1 model training skipped (backend unavailable).", "dataWorkspace.console.v1Unreachable");
       }
+
+      // Invalidate all query caches so that all active views fetch the new data
+      void queryClient.invalidateQueries({ queryKey: ["metrics"] });
 
       setProgress(100);
       setDropState("complete");

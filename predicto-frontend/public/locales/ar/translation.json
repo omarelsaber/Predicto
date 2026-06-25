@@ -226,8 +226,11 @@
     "signals": {
       "DISCOUNT_CLIFF": "منحدر الخصم",
       "MARGIN_PRESSURE": "ضغط الهامش",
+      "SEGMENT_MISMATCH": "عدم تطابق القطاع",
       "LONG_CYCLE": "دورة طويلة",
       "HIGH_PRIORITY": "أولوية قصوى",
+      "HIGH_ARR": "إيرادات سنوية عالية",
+      "CHURN_RISK": "مخاطر فقدان العملاء",
       "EXPANSION_READY": "جاهز للتوسع",
       "EXEC_SPONSOR_MISSING": "الراعي التنفيذي مفقود",
       "RENEWAL_RISK": "مخاطر التجديد",
@@ -802,6 +805,8 @@
     },
     "executeMove": "تنفيذ التحرك",
     "combinedExpectedValue": "القيمة المتوقعة الإجمالية",
+    "playbookSuccess": "تم تشغيل خطة العمل بنجاح لـ {{customer}}!",
+    "moveSuccess": "تم بدء تنفيذ التحرك \"{{move}}\" بنجاح!",
     "simulator": {
       "title": "محاكي المقايضة بين الهامش ومعدل الفوز",
       "subtitle": "اضبط لمحاكاة تأثير الخصم الإضافي. فجوة حد باريتو الفعال تُعرض مباشرة.",

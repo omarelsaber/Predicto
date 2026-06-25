@@ -12,5 +12,12 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname, './src')
     }
-  }
+  },
+  server: {
+    proxy: {
+      '/api': 'http://localhost:8001',
+      '/v2': 'http://localhost:8001',
+      '/analyst': 'http://localhost:8001',
+    },
+  },
 })

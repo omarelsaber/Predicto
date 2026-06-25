@@ -10,7 +10,6 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -22,10 +21,10 @@ from app.models.response_models import (
     RepPlaybookResponse,
     CampaignROIResponse,
 )
-from app.services.cliff_detector_service import detect_revenue_cliffs
-from app.services.simulator_service import simulate_revenue_scenario
-from app.services.fingerprint_service import calculate_fingerprints
-from app.services.playbook_service import generate_rep_playbook
+from app.services.cliff_detector_service import run_cliff_detection
+from app.services.simulator_service import run_scenario_simulation
+from app.services.fingerprint_service import compute_lifecycle_fingerprint
+from app.services.rep_playbook_service import compute_rep_playbooks
 from app.services.roi_decomposer_service import compute_campaign_roi
 
 log = logging.getLogger("predicto.v2.godtier")
@@ -49,7 +48,7 @@ async def post_revenue_simulator(request: SimulatorRequest) -> SimulatorResponse
     POST /api/v2/forecast/revenue-simulator
     """
     try:
-        return simulate_revenue_scenario(request)
+        return run_scenario_simulation(request)
     except Exception as exc:
         log.error("Simulation failed: %s", exc, exc_info=True)
         raise HTTPException(
@@ -76,7 +75,7 @@ async def get_revenue_cliff_detector(
     GET /api/v2/risk/revenue-cliff-detector
     """
     try:
-        return detect_revenue_cliffs(forecast_months=forecast_months)
+        return run_cliff_detection(forecast_months=forecast_months)
     except Exception as exc:
         log.error("Cliff detection failed: %s", exc, exc_info=True)
         raise HTTPException(
@@ -94,7 +93,7 @@ async def get_revenue_cliff_detector(
 )
 async def get_lifecycle_fingerprint() -> LifecycleFingerprintResponse:
     try:
-        return calculate_fingerprints()
+        return compute_lifecycle_fingerprint()
     except Exception as exc:
         log.error("Fingerprinting failed: %s", exc, exc_info=True)
         raise HTTPException(status_code=500, detail=f"Fingerprinting failed: {str(exc)}")
@@ -107,11 +106,9 @@ async def get_lifecycle_fingerprint() -> LifecycleFingerprintResponse:
     response_model=RepPlaybookResponse,
     summary="Generate Rep Playbooks",
 )
-async def get_rep_playbook(
-    sales_rep: str = Query(..., description="Name of the sales rep to analyze.")
-) -> RepPlaybookResponse:
+async def get_rep_playbook() -> RepPlaybookResponse:
     try:
-        return await generate_rep_playbook(sales_rep)
+        return compute_rep_playbooks()
     except Exception as exc:
         log.error("Playbook generation failed: %s", exc, exc_info=True)
         raise HTTPException(status_code=500, detail=f"Playbook generation failed: {str(exc)}")
